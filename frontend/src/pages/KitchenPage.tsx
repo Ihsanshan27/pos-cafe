@@ -1,0 +1,182 @@
+import { useState, useEffect, useRef } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { transactionApi } from '../lib/api';
+import { CheckCircle, Clock, Play, Check } from 'lucide-react';
+
+function playDing() {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.5);
+    
+    gain.gain.setValueAtTime(1, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+    
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    
+    osc.start();
+    osc.stop(ctx.currentTime + 0.5);
+  } catch (e) {
+    console.error('Audio play failed', e);
+  }
+}
+
+export default function KitchenPage() {
+  const qc = useQueryClient();
+  const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+
+  const { data: transactions = [], isLoading } = useQuery({
+    queryKey: ['transactions'],
+    queryFn: transactionApi.getAll,
+    refetchInterval: 5000,
+  });
+
+  // Filter completed payments, split by kitchen status
+  const pendingOrders = transactions
+    .filter(tx => tx.status === 'COMPLETED' && tx.kitchenStatus === 'PENDING')
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+
+  const inProgressOrders = transactions
+    .filter(tx => tx.status === 'COMPLETED' && tx.kitchenStatus === 'IN_PROGRESS')
+    .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
+
+  // Show only last 20 done orders
+  const doneOrders = transactions
+    .filter(tx => tx.status === 'COMPLETED' && tx.kitchenStatus === 'DONE')
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
+    .slice(0, 20);
+
+  const prevCount = useRef(0);
+
+  useEffect(() => {
+    if (pendingOrders.length > prevCount.current && pendingOrders.length > 0) {
+      playDing();
+    }
+    prevCount.current = pendingOrders.length;
+  }, [pendingOrders.length]);
+
+  const updateStatusMut = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: 'PENDING' | 'IN_PROGRESS' | 'DONE' }) => transactionApi.updateKitchenStatus(id, status),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['transactions'] });
+    },
+    onError: () => {
+      setToast({ msg: 'Gagal update status pesanan', type: 'error' });
+      setTimeout(() => setToast(null), 3000);
+    }
+  });
+
+  if (isLoading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading KDS...</div>;
+
+  const renderCard = (tx: any, isPending: boolean, isInProgress: boolean) => (
+    <div key={tx.id} style={{ background: 'var(--bg-card)', border: '2px solid var(--border)', borderRadius: '1rem', overflow: 'hidden', display: 'flex', flexDirection: 'column', marginBottom: '1rem', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
+      <div style={{ padding: '1rem', background: tx.orderType === 'DINE_IN' ? 'rgba(59, 130, 246, 0.1)' : 'rgba(245, 158, 11, 0.1)', borderBottom: '2px solid var(--border)' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+          <span style={{ fontWeight: 800, fontSize: '1.2rem', color: tx.orderType === 'DINE_IN' ? '#3b82f6' : '#f59e0b' }}>
+            {tx.orderType === 'DINE_IN' ? `DINE IN (${tx.tableNumber})` : 'TAKEAWAY'}
+          </span>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+            <Clock size={12} /> {new Date(tx.createdAt).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
+          </span>
+        </div>
+        <div style={{ fontSize: '0.9rem', fontWeight: 600 }}>
+          {tx.orderNumber || `#${tx.id.slice(0, 8).toUpperCase()}`}
+          {(tx as any).customerName || (tx as any).customer?.name ? ` • ${(tx as any).customerName || (tx as any).customer?.name}` : ''}
+        </div>
+      </div>
+
+      <div style={{ padding: '1rem', flex: 1 }}>
+        {tx.items.map((item: any) => (
+          <div key={item.id} style={{ marginBottom: '0.75rem', paddingBottom: '0.75rem', borderBottom: '1px dashed var(--border)' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', fontWeight: 700, fontSize: '1.1rem' }}>
+              <span style={{ background: 'var(--accent)', color: 'white', padding: '0.1rem 0.5rem', borderRadius: '0.25rem' }}>{item.quantity}</span>
+              <span>{item.menu?.name}</span>
+            </div>
+            {item.notes && (
+              <div style={{ marginTop: '0.25rem', fontSize: '0.9rem', color: 'var(--danger)', fontWeight: 600 }}>
+                Catatan: {item.notes}
+              </div>
+            )}
+          </div>
+        ))}
+      </div>
+
+      {(isPending || isInProgress) && (
+        <div style={{ padding: '1rem', borderTop: '2px solid var(--border)', display: 'flex', gap: '0.5rem' }}>
+          {isPending && (
+            <button 
+              className="btn btn-primary" 
+              style={{ flex: 1, justifyContent: 'center' }}
+              onClick={() => updateStatusMut.mutate({ id: tx.id, status: 'IN_PROGRESS' })}
+              disabled={updateStatusMut.isPending}
+            >
+              <Play size={18} /> Proses
+            </button>
+          )}
+          {isInProgress && (
+            <button 
+              className="btn btn-success" 
+              style={{ flex: 1, justifyContent: 'center' }}
+              onClick={() => updateStatusMut.mutate({ id: tx.id, status: 'DONE' })}
+              disabled={updateStatusMut.isPending}
+            >
+              <Check size={18} /> Selesai
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
+  return (
+    <div style={{ padding: '1.5rem', height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', width: '100%', overflow: 'hidden' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexShrink: 0 }}>
+        <h1 style={{ margin: 0, fontSize: '2rem' }}>Kitchen Display System (KDS)</h1>
+      </div>
+
+      {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem', flex: 1, minHeight: 0 }}>
+        
+        {/* PENDING Column */}
+        <div style={{ background: 'rgba(239, 68, 68, 0.05)', border: '2px dashed rgba(239, 68, 68, 0.2)', borderRadius: '1rem', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '1rem', background: 'rgba(239, 68, 68, 0.1)', color: '#b91c1c', fontWeight: 800, textAlign: 'center', fontSize: '1.2rem', borderBottom: '2px solid rgba(239, 68, 68, 0.2)' }}>
+            Pesanan Masuk ({pendingOrders.length})
+          </div>
+          <div style={{ padding: '1rem', overflowY: 'auto', flex: 1 }}>
+            {pendingOrders.map(tx => renderCard(tx, true, false))}
+            {pendingOrders.length === 0 && <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>Tidak ada pesanan</div>}
+          </div>
+        </div>
+
+        {/* IN PROGRESS Column */}
+        <div style={{ background: 'rgba(245, 158, 11, 0.05)', border: '2px dashed rgba(245, 158, 11, 0.2)', borderRadius: '1rem', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '1rem', background: 'rgba(245, 158, 11, 0.1)', color: '#b45309', fontWeight: 800, textAlign: 'center', fontSize: '1.2rem', borderBottom: '2px solid rgba(245, 158, 11, 0.2)' }}>
+            Sedang Diproses ({inProgressOrders.length})
+          </div>
+          <div style={{ padding: '1rem', overflowY: 'auto', flex: 1 }}>
+            {inProgressOrders.map(tx => renderCard(tx, false, true))}
+            {inProgressOrders.length === 0 && <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>Tidak ada pesanan diproses</div>}
+          </div>
+        </div>
+
+        {/* DONE Column */}
+        <div style={{ background: 'rgba(16, 185, 129, 0.05)', border: '2px dashed rgba(16, 185, 129, 0.2)', borderRadius: '1rem', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          <div style={{ padding: '1rem', background: 'rgba(16, 185, 129, 0.1)', color: '#047857', fontWeight: 800, textAlign: 'center', fontSize: '1.2rem', borderBottom: '2px solid rgba(16, 185, 129, 0.2)' }}>
+            Selesai ({doneOrders.length})
+          </div>
+          <div style={{ padding: '1rem', overflowY: 'auto', flex: 1, opacity: 0.8 }}>
+            {doneOrders.map(tx => renderCard(tx, false, false))}
+            {doneOrders.length === 0 && <div style={{ textAlign: 'center', color: 'var(--text-muted)', marginTop: '2rem' }}>Belum ada pesanan selesai</div>}
+          </div>
+        </div>
+
+      </div>
+    </div>
+  );
+}

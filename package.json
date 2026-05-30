@@ -1,0 +1,11 @@
+{
+  "name": "pos-fnb",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "sistem": "concurrently \"npm run start:dev --prefix backend\" \"npm run dev --prefix frontend\""
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

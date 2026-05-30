@@ -1,0 +1,195 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  email     String   @unique
+  password  String
+  role         Role          @default(CASHIER)
+  createdAt    DateTime      @default(now())
+  transactions Transaction[]
+  shifts       Shift[]
+}
+
+enum Role {
+  OWNER
+  MANAGER
+  CASHIER
+  BARISTA
+}
+
+model Ingredient {
+  id            String       @id @default(uuid())
+  name          String
+  unit          String       // e.g., gram, ml, pcs
+  costPerUnit   Decimal      // Cost per unit for dynamic HPP calculation
+  stockQuantity Float
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  recipes       RecipeItem[]
+  inventoryLogs InventoryLog[]
+}
+
+model Category {
+  id        String   @id @default(uuid())
+  name      String   @unique
+  menus     Menu[]
+}
+
+model Menu {
+  id            String       @id @default(uuid())
+  name          String
+  description   String?
+  sellingPrice  Decimal
+  imageUrl      String?
+  categoryId    String?
+  category      Category?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  ingredients   RecipeItem[]
+  transactions  TransactionItem[]
+}
+
+model RecipeItem {
+  id            String     @id @default(uuid())
+  quantity      Float      // Amount needed for 1 portion
+  menuId        String
+  menu          Menu       @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  ingredientId  String
+  ingredient    Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+
+  @@unique([menuId, ingredientId])
+}
+
+model Expense {
+  id          String   @id @default(uuid())
+  description String
+  amount      Decimal
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+enum PaymentMethod {
+  CASH
+  QRIS
+  DEBIT
+  EWALLET
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+}
+
+model Discount {
+  id        String   @id @default(uuid())
+  code      String   @unique
+  type      String   // 'PERCENTAGE' or 'FIXED'
+  value     Decimal
+  isActive  Boolean  @default(true)
+}
+
+model Shift {
+  id               String        @id @default(uuid())
+  userId           String
+  user             User          @relation(fields: [userId], references: [id])
+  startTime        DateTime      @default(now())
+  endTime          DateTime?
+  startingCash     Decimal
+  actualEndingCash Decimal?
+  status           String        @default("OPEN") // 'OPEN' or 'CLOSED'
+  transactions     Transaction[]
+}
+
+model Transaction {
+  id             String            @id @default(uuid())
+  orderNumber    String?           @unique
+  totalAmount    Decimal
+  paymentMethod  PaymentMethod     @default(CASH)
+  status         TransactionStatus @default(COMPLETED)
+  orderType      OrderType         @default(DINE_IN)
+  tableNumber    String?
+  discountAmount Decimal           @default(0)
+  taxAmount      Decimal           @default(0)
+  customerName   String?
+  customerId     String?
+  customer       Customer?         @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  shiftId        String?
+  shift          Shift?            @relation(fields: [shiftId], references: [id], onDelete: SetNull)
+  userId         String?
+  user           User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt      DateTime          @default(now())
+  kitchenStatus  KitchenStatus     @default(PENDING)
+  items          TransactionItem[]
+}
+
+enum KitchenStatus {
+  PENDING
+  IN_PROGRESS
+  DONE
+}
+
+model TransactionItem {
+  id            String      @id @default(uuid())
+  quantity      Int
+  priceAtSale   Decimal
+  subtotal      Decimal
+  notes         String?
+  transactionId String
+  transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  menuId        String
+  menu          Menu        @relation(fields: [menuId], references: [id], onDelete: Restrict)
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+model Setting {
+  key   String @id
+  value String
+}
+
+model Customer {
+  id           String        @id @default(uuid())
+  name         String
+  phone        String?       @unique
+  email        String?       @unique
+  pointBalance Int           @default(0)
+  tier         CustomerTier  @default(BRONZE)
+  transactions Transaction[]
+  createdAt    DateTime      @default(now())
+}
+
+enum CustomerTier {
+  BRONZE
+  SILVER
+  GOLD
+}
+
+model InventoryLog {
+  id           String      @id @default(uuid())
+  ingredientId String
+  ingredient   Ingredient  @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  type         LogType
+  quantity     Float
+  notes        String?
+  createdAt    DateTime    @default(now())
+  createdBy    String?
+}
+
+enum LogType {
+  IN
+  OUT
+  SALE
+  VOID
+  ADJUSTMENT
+}
