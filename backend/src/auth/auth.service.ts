@@ -5,14 +5,19 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
-import { RegisterDto, LoginDto } from './dto/auth.dto';
+import { LoginDto } from './dto/auth.dto';
+import { RegisterDto } from './dto/register.dto';
 import * as bcrypt from 'bcrypt';
+import { SettingsService } from '../settings/settings.service';
+import { Role } from '@prisma/client';
+import { sanitizeUser } from '../common/user-response.util';
 
 @Injectable()
 export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private settingsService: SettingsService,
   ) {}
 
   async register(dto: RegisterDto) {
@@ -31,18 +36,24 @@ export class AuthService {
         name: dto.name,
         email: dto.email,
         password: hashedPassword,
-        role: dto.role,
+        role: Role.CASHIER,
+      },
+      include: {
+        outlet: true,
       },
     });
 
-    const { password, ...result } = user;
-    return result;
+    return {
+      ...sanitizeUser(user),
+      mustChangePassword: await this.settingsService.getForcePasswordChangeRequired(user.id),
+    };
   }
 
   async login(dto: LoginDto) {
     // Find user by email
     const user = await this.prisma.user.findUnique({
       where: { email: dto.email },
+      include: { outlet: true },
     });
     if (!user) throw new UnauthorizedException('Invalid email or password');
 
@@ -55,10 +66,12 @@ export class AuthService {
     const payload = { sub: user.id, email: user.email, role: user.role };
     const accessToken = this.jwtService.sign(payload);
 
-    const { password, ...userWithoutPassword } = user;
     return {
       accessToken,
-      user: userWithoutPassword,
+      user: {
+        ...sanitizeUser(user),
+        mustChangePassword: await this.settingsService.getForcePasswordChangeRequired(user.id),
+      },
     };
   }
 
@@ -82,9 +95,16 @@ export class AuthService {
     const updatedUser = await this.prisma.user.update({
       where: { id: userId },
       data: updateData,
+      include: { outlet: true },
     });
 
-    const { password, ...result } = updatedUser;
-    return result;
+    if (data.password) {
+      await this.settingsService.markPasswordChanged(userId);
+    }
+
+    return {
+      ...sanitizeUser(updatedUser),
+      mustChangePassword: await this.settingsService.getForcePasswordChangeRequired(userId),
+    };
   }
 }

@@ -1,8 +1,10 @@
 import { Controller, Post, Body, Get, Patch, UseGuards, Request, BadRequestException } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto } from './dto/auth.dto';
+import { LoginDto } from './dto/auth.dto';
+import { RegisterDto } from './dto/register.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { SettingsService } from '../settings/settings.service';
+import { LoginRateLimitGuard } from '../common/simple-rate-limit.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -11,6 +13,7 @@ export class AuthController {
     private readonly settingsService: SettingsService
   ) {}
 
+  @UseGuards(LoginRateLimitGuard)
   @Post('register')
   async register(@Body() dto: RegisterDto) {
     const allowed = await this.settingsService.getAllowRegistration();
@@ -20,6 +23,7 @@ export class AuthController {
     return this.authService.register(dto);
   }
 
+  @UseGuards(LoginRateLimitGuard)
   @Post('login')
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);

@@ -12,24 +12,33 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.CustomersService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const client_1 = require("@prisma/client");
+const settings_service_1 = require("../settings/settings.service");
 let CustomersService = class CustomersService {
     prisma;
-    constructor(prisma) {
+    settingsService;
+    constructor(prisma, settingsService) {
         this.prisma = prisma;
+        this.settingsService = settingsService;
     }
     create(data) {
         return this.prisma.customer.create({ data });
     }
-    findAll() {
-        return this.prisma.customer.findMany({
+    async findAll() {
+        const customers = await this.prisma.customer.findMany({
             orderBy: { createdAt: 'desc' }
         });
+        return this.attachResolvedTier(customers);
     }
-    findOne(id) {
-        return this.prisma.customer.findUnique({
+    async findOne(id) {
+        const customer = await this.prisma.customer.findUnique({
             where: { id },
             include: { transactions: true }
         });
+        if (!customer)
+            return customer;
+        const [resolved] = await this.attachResolvedTier([customer]);
+        return resolved;
     }
     async update(id, data) {
         return this.prisma.customer.update({
@@ -40,10 +49,32 @@ let CustomersService = class CustomersService {
     remove(id) {
         return this.prisma.customer.delete({ where: { id } });
     }
+    async attachResolvedTier(customers) {
+        if (customers.length === 0)
+            return customers;
+        const [silverSetting, goldSetting] = await Promise.all([
+            this.settingsService.getSetting('SILVER_MIN_POINTS'),
+            this.settingsService.getSetting('GOLD_MIN_POINTS'),
+        ]);
+        const silverMinPoints = Math.max(0, Number(silverSetting?.value ?? '100'));
+        const goldMinPoints = Math.max(silverMinPoints, Number(goldSetting?.value ?? '300'));
+        return customers.map((customer) => ({
+            ...customer,
+            tier: this.resolveTier(customer.pointBalance, silverMinPoints, goldMinPoints),
+        }));
+    }
+    resolveTier(pointBalance, silverMinPoints, goldMinPoints) {
+        if (pointBalance >= goldMinPoints)
+            return client_1.CustomerTier.GOLD;
+        if (pointBalance >= silverMinPoints)
+            return client_1.CustomerTier.SILVER;
+        return client_1.CustomerTier.BRONZE;
+    }
 };
 exports.CustomersService = CustomersService;
 exports.CustomersService = CustomersService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        settings_service_1.SettingsService])
 ], CustomersService);
 //# sourceMappingURL=customers.service.js.map

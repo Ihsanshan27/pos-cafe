@@ -24,12 +24,15 @@ __decorate([
     __metadata("design:type", String)
 ], TransactionItemDto.prototype, "menuId", void 0);
 __decorate([
-    (0, class_validator_1.IsNumber)(),
+    (0, class_transformer_1.Type)(() => Number),
+    (0, class_validator_1.IsInt)(),
+    (0, class_validator_1.Min)(1),
     __metadata("design:type", Number)
 ], TransactionItemDto.prototype, "quantity", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(300),
     __metadata("design:type", String)
 ], TransactionItemDto.prototype, "notes", void 0);
 class CreateTransactionDto {
@@ -43,10 +46,13 @@ class CreateTransactionDto {
     shiftId;
     customerName;
     customerId;
+    outletId;
+    source;
 }
 exports.CreateTransactionDto = CreateTransactionDto;
 __decorate([
     (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ArrayMinSize)(1),
     (0, class_validator_1.ValidateNested)({ each: true }),
     (0, class_transformer_1.Type)(() => TransactionItemDto),
     __metadata("design:type", Array)
@@ -73,12 +79,16 @@ __decorate([
 ], CreateTransactionDto.prototype, "tableNumber", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
     (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], CreateTransactionDto.prototype, "discountAmount", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
+    (0, class_transformer_1.Type)(() => Number),
     (0, class_validator_1.IsNumber)(),
+    (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], CreateTransactionDto.prototype, "taxAmount", void 0);
 __decorate([
@@ -89,6 +99,7 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsString)(),
+    (0, class_validator_1.MaxLength)(120),
     __metadata("design:type", String)
 ], CreateTransactionDto.prototype, "customerName", void 0);
 __decorate([
@@ -96,4 +107,14 @@ __decorate([
     (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], CreateTransactionDto.prototype, "customerId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateTransactionDto.prototype, "outletId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsEnum)(client_1.TransactionSource),
+    __metadata("design:type", String)
+], CreateTransactionDto.prototype, "source", void 0);
 //# sourceMappingURL=create-transaction.dto.js.map

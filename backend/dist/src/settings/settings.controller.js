@@ -19,10 +19,16 @@ const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
 const roles_guard_1 = require("../auth/roles.guard");
 const roles_decorator_1 = require("../auth/roles.decorator");
 const client_1 = require("@prisma/client");
+const platform_express_1 = require("@nestjs/platform-express");
+const multer_1 = require("multer");
+const image_upload_util_1 = require("../common/image-upload.util");
 let SettingsController = class SettingsController {
     settingsService;
     constructor(settingsService) {
         this.settingsService = settingsService;
+    }
+    async getAllSettings() {
+        return this.settingsService.getAllSettings();
     }
     async getAllowRegistration() {
         const allowed = await this.settingsService.getAllowRegistration();
@@ -31,6 +37,41 @@ let SettingsController = class SettingsController {
     async setAllowRegistration(allowed) {
         await this.settingsService.setSetting('ALLOW_REGISTRATION', allowed ? 'true' : 'false');
         return { allowed };
+    }
+    async setManySettings(settings) {
+        return this.settingsService.setManySettings(settings ?? {});
+    }
+    async uploadLogo(file) {
+        if (!file) {
+            throw new common_1.BadRequestException('Image file is required');
+        }
+        const { imageUrl } = await (0, image_upload_util_1.saveOptimizedImage)({
+            buffer: file.buffer,
+            prefix: 'store-logo',
+            maxWidth: 800,
+            maxHeight: 800,
+            quality: 82,
+        });
+        await this.settingsService.setSetting('STORE_LOGO_URL', imageUrl);
+        return { imageUrl };
+    }
+    async getSystemInfo() {
+        return this.settingsService.getSystemInfo();
+    }
+    async exportBackup() {
+        return this.settingsService.exportBackup();
+    }
+    async restoreBackup(backup) {
+        if (!backup?.data) {
+            throw new common_1.BadRequestException('Backup payload is required');
+        }
+        return this.settingsService.restoreBackup(backup);
+    }
+    async applyLogRetention() {
+        return this.settingsService.applyLogRetention();
+    }
+    async resetDemoData() {
+        return this.settingsService.resetDemoData();
     }
     async getGenericSetting(key) {
         const setting = await this.settingsService.getSetting(key);
@@ -41,6 +82,14 @@ let SettingsController = class SettingsController {
     }
 };
 exports.SettingsController = SettingsController;
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER),
+    (0, common_1.Get)(),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], SettingsController.prototype, "getAllSettings", null);
 __decorate([
     (0, common_1.Get)('allow-registration'),
     __metadata("design:type", Function),
@@ -56,6 +105,77 @@ __decorate([
     __metadata("design:paramtypes", [Boolean]),
     __metadata("design:returntype", Promise)
 ], SettingsController.prototype, "setAllowRegistration", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER),
+    (0, common_1.Patch)(),
+    __param(0, (0, common_1.Body)('settings')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], SettingsController.prototype, "setManySettings", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER),
+    (0, common_1.Post)('upload-logo'),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('image', {
+        storage: (0, multer_1.memoryStorage)(),
+        fileFilter: (_req, file, cb) => {
+            if (!file.mimetype.startsWith('image/')) {
+                return cb(new common_1.BadRequestException('Only image files are allowed'), false);
+            }
+            cb(null, true);
+        },
+        limits: {
+            fileSize: 5 * 1024 * 1024,
+        },
+    })),
+    __param(0, (0, common_1.UploadedFile)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], SettingsController.prototype, "uploadLogo", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER),
+    (0, common_1.Get)('system-info'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], SettingsController.prototype, "getSystemInfo", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER),
+    (0, common_1.Get)('export-backup'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], SettingsController.prototype, "exportBackup", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER),
+    (0, common_1.Post)('restore-backup'),
+    __param(0, (0, common_1.Body)('backup')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], SettingsController.prototype, "restoreBackup", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER),
+    (0, common_1.Post)('apply-log-retention'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], SettingsController.prototype, "applyLogRetention", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER),
+    (0, common_1.Post)('reset-demo-data'),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", []),
+    __metadata("design:returntype", Promise)
+], SettingsController.prototype, "resetDemoData", null);
 __decorate([
     (0, common_1.Get)(':key'),
     __param(0, (0, common_1.Param)('key')),

@@ -102,6 +102,12 @@
     margin-top: 2px;
   }
 
+  .brand-logo-image {
+    display: block;
+    object-fit: cover;
+    object-position: center;
+  }
+
   .sidebar-section-label {
     font-size: 0.65rem;
     font-weight: 600;

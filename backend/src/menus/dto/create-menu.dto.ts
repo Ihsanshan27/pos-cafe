@@ -1,4 +1,4 @@
-import { IsString, IsNumber, Min, IsOptional, ValidateNested, IsArray, IsUrl } from 'class-validator';
+import { IsString, IsNumber, Min, IsOptional, ValidateNested, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class RecipeItemDto {
@@ -23,7 +23,7 @@ export class CreateMenuDto {
   sellingPrice: number;
 
   @IsOptional()
-  @IsUrl()
+  @IsString()
   imageUrl?: string;
 
   @IsOptional()

@@ -13,28 +13,40 @@ import {
   PercentCircle,
   Settings,
   Users,
-  ClipboardList
+  ClipboardList,
+  Store,
+  Truck,
+  ShoppingBag
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
+import { isFeatureDisabled, type FeatureKey } from '../lib/featureAccess';
+import { resolveMediaUrl } from '../lib/api';
+import { useActiveOutlet } from '../hooks/useActiveOutlet';
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true, roles: ['OWNER', 'MANAGER'] },
-  { to: '/pos', icon: ShoppingCart, label: 'Point of Sale', badge: 'POS', roles: ['OWNER', 'MANAGER', 'CASHIER'] },
-  { to: '/transactions', icon: Receipt, label: 'Transactions', roles: ['OWNER', 'MANAGER', 'CASHIER'] },
-  { to: '/kitchen', icon: ChefHat, label: 'KDS', badge: 'NEW', roles: ['OWNER', 'MANAGER', 'CASHIER', 'BARISTA'] },
-  { to: '/menus', icon: UtensilsCrossed, label: 'Menus', roles: ['OWNER', 'MANAGER'] },
-  { to: '/categories', icon: Tags, label: 'Categories', roles: ['OWNER', 'MANAGER'] },
-  { to: '/ingredients', icon: Package, label: 'Ingredients', roles: ['OWNER', 'MANAGER'] },
-  { to: '/inventory-logs', icon: ClipboardList, label: 'Inventory Logs', roles: ['OWNER', 'MANAGER'] },
-  { to: '/discounts', icon: PercentCircle, label: 'Discounts', roles: ['OWNER', 'MANAGER'] },
-  { to: '/expenses', icon: Wallet, label: 'Expenses', roles: ['OWNER', 'MANAGER'] },
-  { to: '/customers', icon: Users, label: 'Customers', roles: ['OWNER', 'MANAGER', 'CASHIER'] },
-  { to: '/users', icon: User, label: 'Staffs', roles: ['OWNER', 'MANAGER'] },
+  { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true, roles: ['OWNER', 'MANAGER'], featureKey: 'dashboard' as FeatureKey },
+  { to: '/pos', icon: ShoppingCart, label: 'Point of Sale', badge: 'POS', roles: ['OWNER', 'MANAGER', 'CASHIER'], featureKey: 'pos' as FeatureKey },
+  { to: '/transactions', icon: Receipt, label: 'Transactions', roles: ['OWNER', 'MANAGER', 'CASHIER'], featureKey: 'transactions' as FeatureKey },
+  { to: '/kitchen', icon: ChefHat, label: 'KDS', badge: 'NEW', roles: ['OWNER', 'MANAGER', 'CASHIER', 'BARISTA'], featureKey: 'kitchen' as FeatureKey },
+  { to: '/menus', icon: UtensilsCrossed, label: 'Menus', roles: ['OWNER', 'MANAGER'], featureKey: 'menus' as FeatureKey },
+  { to: '/categories', icon: Tags, label: 'Categories', roles: ['OWNER', 'MANAGER'], featureKey: 'categories' as FeatureKey },
+  { to: '/ingredients', icon: Package, label: 'Ingredients', roles: ['OWNER', 'MANAGER'], featureKey: 'ingredients' as FeatureKey },
+  { to: '/inventory-logs', icon: ClipboardList, label: 'Inventory Logs', roles: ['OWNER', 'MANAGER'], featureKey: 'inventory-logs' as FeatureKey },
+  { to: '/discounts', icon: PercentCircle, label: 'Discounts', roles: ['OWNER', 'MANAGER'], featureKey: 'discounts' as FeatureKey },
+  { to: '/expenses', icon: Wallet, label: 'Expenses', roles: ['OWNER', 'MANAGER'], featureKey: 'expenses' as FeatureKey },
+  { to: '/customers', icon: Users, label: 'Customers', roles: ['OWNER', 'MANAGER', 'CASHIER'], featureKey: 'customers' as FeatureKey },
+  { to: '/outlets', icon: Store, label: 'Outlets', roles: ['OWNER', 'MANAGER'], featureKey: 'outlets' as FeatureKey },
+  { to: '/suppliers', icon: Truck, label: 'Suppliers', roles: ['OWNER', 'MANAGER'], featureKey: 'suppliers' as FeatureKey },
+  { to: '/purchase-orders', icon: ShoppingBag, label: 'Purchase Orders', roles: ['OWNER', 'MANAGER'], featureKey: 'purchase-orders' as FeatureKey },
+  { to: '/users', icon: User, label: 'Staffs', roles: ['OWNER', 'MANAGER'], featureKey: 'users' as FeatureKey },
   { to: '/settings', icon: Settings, label: 'Settings', roles: ['OWNER'] },
 ];
 
 export default function Sidebar() {
   const { user, logout } = useAuth();
+  const { storeName, storeLogoUrl, disabledFeatures } = useAppPublicSettings();
+  const { outlets, activeOutletId, setActiveOutletId, isLockedToUserOutlet } = useActiveOutlet();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -46,11 +58,27 @@ export default function Sidebar() {
     <aside className="sidebar">
       {/* Logo */}
       <div className="sidebar-logo">
-        <div className="sidebar-logo-icon">
-          <ChefHat size={20} color="white" />
-        </div>
+        {storeLogoUrl ? (
+          <img
+            className="brand-logo-image"
+            src={resolveMediaUrl(storeLogoUrl)}
+            alt={storeName}
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: 10,
+              flexShrink: 0,
+              border: '1px solid var(--border)',
+              background: 'white',
+            }}
+          />
+        ) : (
+          <div className="sidebar-logo-icon">
+            <ChefHat size={20} color="white" />
+          </div>
+        )}
         <div className="sidebar-logo-text">
-          <h1>SHN COFFEE</h1>
+          <h1>{storeName}</h1>
           <p>Restaurant System</p>
         </div>
       </div>
@@ -58,7 +86,30 @@ export default function Sidebar() {
       {/* Navigation */}
       <div className="sidebar-section-label">Navigation</div>
 
-      {navItems.filter(item => item.roles.includes(user?.role as string)).map(({ to, icon: Icon, label, badge, end }) => (
+      {outlets.length > 0 && user?.role !== 'BARISTA' && (
+        <div style={{ marginBottom: '0.75rem' }}>
+          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.35rem', fontWeight: 700 }}>
+            Active Outlet
+          </div>
+          <select
+            value={activeOutletId}
+            onChange={(e) => setActiveOutletId(e.target.value)}
+            disabled={isLockedToUserOutlet}
+            style={{ width: '100%' }}
+          >
+            {outlets.map((outlet) => (
+              <option key={outlet.id} value={outlet.id}>
+                {outlet.name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {navItems
+        .filter((item) => item.roles.includes(user?.role as string))
+        .filter((item) => !item.featureKey || !isFeatureDisabled(disabledFeatures, item.featureKey))
+        .map(({ to, icon: Icon, label, badge, end }) => (
         <NavLink
           key={to}
           to={to}

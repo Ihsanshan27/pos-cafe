@@ -29,8 +29,8 @@ let ExpensesController = class ExpensesController {
     create(createExpenseDto) {
         return this.expensesService.create(createExpenseDto);
     }
-    findAll() {
-        return this.expensesService.findAll();
+    findAll(outletId) {
+        return this.expensesService.findAll(outletId);
     }
     findOne(id) {
         return this.expensesService.findOne(id);
@@ -52,8 +52,9 @@ __decorate([
 ], ExpensesController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
+    __param(0, (0, common_1.Query)('outletId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], ExpensesController.prototype, "findAll", null);
 __decorate([

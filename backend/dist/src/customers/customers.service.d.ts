@@ -1,7 +1,9 @@
 import { PrismaService } from '../prisma/prisma.service';
+import { SettingsService } from '../settings/settings.service';
 export declare class CustomersService {
     private prisma;
-    constructor(prisma: PrismaService);
+    private settingsService;
+    constructor(prisma: PrismaService, settingsService: SettingsService);
     create(data: {
         name: string;
         phone?: string;
@@ -15,7 +17,7 @@ export declare class CustomersService {
         pointBalance: number;
         tier: import("@prisma/client").$Enums.CustomerTier;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
-    findAll(): import("@prisma/client").Prisma.PrismaPromise<{
+    findAll(): Promise<{
         id: string;
         name: string;
         createdAt: Date;
@@ -24,10 +26,11 @@ export declare class CustomersService {
         pointBalance: number;
         tier: import("@prisma/client").$Enums.CustomerTier;
     }[]>;
-    findOne(id: string): import("@prisma/client").Prisma.Prisma__CustomerClient<({
+    findOne(id: string): Promise<({
         transactions: {
             id: string;
             createdAt: Date;
+            outletId: string | null;
             status: import("@prisma/client").$Enums.TransactionStatus;
             paymentMethod: import("@prisma/client").$Enums.PaymentMethod;
             orderType: import("@prisma/client").$Enums.OrderType;
@@ -37,10 +40,11 @@ export declare class CustomersService {
             shiftId: string | null;
             customerName: string | null;
             customerId: string | null;
+            source: import("@prisma/client").$Enums.TransactionSource;
+            userId: string | null;
             orderNumber: string | null;
             totalAmount: import("@prisma/client-runtime-utils").Decimal;
             kitchenStatus: import("@prisma/client").$Enums.KitchenStatus;
-            userId: string | null;
         }[];
     } & {
         id: string;
@@ -50,7 +54,7 @@ export declare class CustomersService {
         phone: string | null;
         pointBalance: number;
         tier: import("@prisma/client").$Enums.CustomerTier;
-    }) | null, null, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    }) | null>;
     update(id: string, data: any): Promise<{
         id: string;
         name: string;
@@ -69,4 +73,6 @@ export declare class CustomersService {
         pointBalance: number;
         tier: import("@prisma/client").$Enums.CustomerTier;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+    private attachResolvedTier;
+    private resolveTier;
 }

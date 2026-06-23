@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { transactionApi } from '../lib/api';
+import { resolveMediaUrl, transactionApi } from '../lib/api';
 import type { Transaction } from '../lib/api';
 import { Receipt, Eye, Printer, XCircle, CheckCircle, X, User, Hash, Download } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
+import { useActiveOutlet } from '../hooks/useActiveOutlet';
 
 function formatCurrency(val: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
@@ -15,6 +17,17 @@ function formatCurrency(val: number) {
 export default function TransactionsPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { activeOutletId, activeOutlet } = useActiveOutlet();
+  const {
+    storeName,
+    storeAddress,
+    storePhone,
+    storeLogoUrl,
+    receiptHeader,
+    receiptFooter,
+    storeTaxId,
+    confirmBeforeVoid,
+  } = useAppPublicSettings();
   const isManagerOrOwner = user?.role === 'OWNER' || user?.role === 'MANAGER';
 
   const [receiptTx, setReceiptTx] = useState<Transaction | null>(null);
@@ -24,8 +37,8 @@ export default function TransactionsPage() {
   const [endDate, setEndDate] = useState<string>('');
 
   const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ['transactions'],
-    queryFn: transactionApi.getAll,
+    queryKey: ['transactions', activeOutletId],
+    queryFn: () => transactionApi.getAll(activeOutletId || undefined),
   });
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
@@ -73,6 +86,8 @@ export default function TransactionsPage() {
     }
 
     const txData = filteredTransactions.map(tx => ({
+      'Pricing Subtotal': Number((tx as any).pricingMetadata?.subtotalBeforeDiscount ?? tx.items.reduce((sum, item) => sum + Number(item.subtotal), 0)),
+      'Menu Gross Total': tx.items.reduce((sum, item) => sum + Number(item.subtotal), 0),
       'Order Number': tx.orderNumber || `#${tx.id.slice(0, 8).toUpperCase()}`,
       'Date': new Date(tx.createdAt).toLocaleString('id-ID'),
       'Type': (tx as any).orderType,
@@ -80,9 +95,12 @@ export default function TransactionsPage() {
       'Cashier': (tx as any).user?.name || '-',
       'Status': tx.status,
       'Payment Method': tx.paymentMethod,
-      'Subtotal': Number(tx.totalAmount) + Number((tx as any).discountAmount) - Number((tx as any).taxAmount || 0),
+      'Subtotal': tx.items.reduce((sum, item) => sum + Number(item.subtotal), 0),
       'Discount': Number((tx as any).discountAmount),
       'Tax (PB1)': Number((tx as any).taxAmount || 0),
+      'Rounding Adjustment': Number((tx as any).pricingMetadata?.roundingAdjustment || 0),
+      'Tax Inclusive': (tx as any).pricingMetadata?.taxInclusive ? 'Yes' : 'No',
+      'Tax Rate': Number((tx as any).pricingMetadata?.taxRate || 0),
       'Total Amount': Number(tx.totalAmount)
     }));
 
@@ -109,7 +127,8 @@ export default function TransactionsPage() {
     XLSX.utils.book_append_sheet(wb, ws1, 'Transactions');
     XLSX.utils.book_append_sheet(wb, ws2, 'Menu Sales');
 
-    XLSX.writeFile(wb, `SHN_Report_${startDate || 'All'}_to_${endDate || 'All'}.xlsx`);
+    const safeStoreName = storeName.replace(/\s+/g, '_');
+    XLSX.writeFile(wb, `${safeStoreName}_Report_${startDate || 'All'}_to_${endDate || 'All'}.xlsx`);
     showToast('Export successful!');
   };
 
@@ -122,7 +141,7 @@ export default function TransactionsPage() {
     const doc = new jsPDF('landscape');
     
     doc.setFontSize(18);
-    doc.text('SHN COFFEE - Transactions Report', 14, 22);
+    doc.text(`${storeName} - Transactions Report`, 14, 22);
     
     doc.setFontSize(11);
     doc.text(`Period: ${startDate || 'All Time'} to ${endDate || 'All Time'}`, 14, 30);
@@ -134,15 +153,16 @@ export default function TransactionsPage() {
       (tx as any).customerName || (tx as any).customer?.name || '-',
       tx.status,
       tx.paymentMethod,
-      formatCurrency(Number(tx.totalAmount) + Number((tx as any).discountAmount) - Number((tx as any).taxAmount || 0)),
+      formatCurrency(Number((tx as any).pricingMetadata?.subtotalBeforeDiscount ?? tx.items.reduce((sum, item) => sum + Number(item.subtotal), 0))),
       formatCurrency(Number((tx as any).discountAmount)),
       formatCurrency(Number((tx as any).taxAmount || 0)),
+      formatCurrency(Number((tx as any).pricingMetadata?.roundingAdjustment || 0)),
       formatCurrency(Number(tx.totalAmount))
     ]);
 
     autoTable(doc, {
       startY: 35,
-      head: [['Order No', 'Date', 'Type', 'Customer', 'Status', 'Payment', 'Subtotal', 'Discount', 'Tax', 'Total']],
+      head: [['Order No', 'Date', 'Type', 'Customer', 'Status', 'Payment', 'Subtotal', 'Discount', 'Tax', 'Rounding', 'Total']],
       body: tableData,
       theme: 'grid',
       headStyles: { fillColor: [99, 102, 241] },
@@ -179,7 +199,8 @@ export default function TransactionsPage() {
       styles: { fontSize: 9 },
     });
 
-    doc.save(`SHN_Report_${startDate || 'All'}_to_${endDate || 'All'}.pdf`);
+    const safeStoreName = storeName.replace(/\s+/g, '_');
+    doc.save(`${safeStoreName}_Report_${startDate || 'All'}_to_${endDate || 'All'}.pdf`);
     showToast('PDF Export successful!');
   };
 
@@ -223,7 +244,7 @@ export default function TransactionsPage() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div>
           <h2>Transactions</h2>
-          <p>View all order history and revenue</p>
+          <p>View all order history and revenue{activeOutlet ? ` • ${activeOutlet.name}` : ''}</p>
         </div>
         <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
@@ -290,6 +311,7 @@ export default function TransactionsPage() {
                 onView={() => setReceiptTx(tx)} 
                 onVoid={() => voidMut.mutate(tx.id)}
                 onPrintKitchen={() => setKitchenTicketTx(tx)}
+                confirmBeforeVoid={confirmBeforeVoid}
                 isManagerOrOwner={isManagerOrOwner}
                 isVoiding={voidMut.isPending}
               />
@@ -304,7 +326,23 @@ export default function TransactionsPage() {
           <div className="modal" style={{ maxWidth: 380, padding: 0, overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
             <div id="receipt-content" style={{ padding: '2rem', fontFamily: 'monospace', background: '#fff', color: '#000' }}>
               <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>SHN COFFEE</h2>
+                {storeLogoUrl && (
+                  <img
+                    className="brand-logo-image"
+                    src={resolveMediaUrl(storeLogoUrl)}
+                    alt={storeName}
+                    style={{ width: 56, height: 56, borderRadius: '0.75rem', margin: '0 auto 0.75rem' }}
+                  />
+                )}
+                {receiptHeader && (
+                  <div style={{ fontSize: '0.85rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', marginBottom: '0.35rem' }}>
+                    {receiptHeader}
+                  </div>
+                )}
+                <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>{storeName}</h2>
+                {storeAddress && <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.35rem' }}>{storeAddress}</div>}
+                {storePhone && <div style={{ fontSize: '0.8rem', color: '#666' }}>{storePhone}</div>}
+                {storeTaxId && <div style={{ fontSize: '0.8rem', color: '#666' }}>NPWP/Legal ID: {storeTaxId}</div>}
                 <div style={{ fontSize: '0.85rem', color: '#666' }}>
                   {(receiptTx as any)?.orderType === 'DINE_IN' ? `DINE IN - Table ${(receiptTx as any).tableNumber}` : 'TAKEAWAY'}
                 </div>
@@ -346,13 +384,37 @@ export default function TransactionsPage() {
                 </div>
               )}
 
+              {Number((receiptTx as any).taxAmount || 0) > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
+                  <span>
+                    {(receiptTx as any).pricingMetadata?.taxInclusive
+                      ? `Included PB1 (${Number((receiptTx as any).pricingMetadata?.taxRate || 0)}%)`
+                      : `PB1 (${Number((receiptTx as any).pricingMetadata?.taxRate || 0)}%)`}
+                  </span>
+                  <span>
+                    {(receiptTx as any).pricingMetadata?.taxInclusive ? '' : '+'}
+                    {formatCurrency(Number((receiptTx as any).taxAmount || 0))}
+                  </span>
+                </div>
+              )}
+
+              {Number((receiptTx as any).pricingMetadata?.roundingAdjustment || 0) !== 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
+                  <span>Rounding</span>
+                  <span>
+                    {Number((receiptTx as any).pricingMetadata?.roundingAdjustment) > 0 ? '+' : ''}
+                    {formatCurrency(Number((receiptTx as any).pricingMetadata?.roundingAdjustment || 0))}
+                  </span>
+                </div>
+              )}
+
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.1rem', fontWeight: 800 }}>
                 <span>TOTAL</span>
                 <span>{formatCurrency(Number(receiptTx.totalAmount))}</span>
               </div>
               
               <div style={{ textAlign: 'center', marginTop: '2rem', fontSize: '0.85rem', color: '#666' }}>
-                Thank you for your visit - SHN COFFEE!
+                {receiptFooter}
               </div>
             </div>
 
@@ -462,6 +524,7 @@ function TransactionCard({
   onView, 
   onVoid, 
   onPrintKitchen,
+  confirmBeforeVoid,
   isManagerOrOwner, 
   isVoiding 
 }: { 
@@ -469,6 +532,7 @@ function TransactionCard({
   onView: () => void; 
   onVoid: () => void;
   onPrintKitchen: () => void;
+  confirmBeforeVoid: boolean;
   isManagerOrOwner: boolean;
   isVoiding: boolean;
 }) {
@@ -533,7 +597,11 @@ function TransactionCard({
           {isManagerOrOwner && tx.status === 'COMPLETED' && (
             <button 
               className="btn btn-danger btn-sm" 
-              onClick={() => { if (confirm('Are you sure you want to void this transaction? Ingredients will be restocked.')) onVoid() }}
+              onClick={() => {
+                if (!confirmBeforeVoid || confirm('Are you sure you want to void this transaction? Ingredients will be restocked.')) {
+                  onVoid();
+                }
+              }}
               disabled={isVoiding}
             >
               <XCircle size={14} /> Void / Cancel

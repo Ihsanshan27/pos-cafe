@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Param, UseGuards, Patch, Request } from '@nestjs/common';
+import { Controller, Get, Post, Body, Param, UseGuards, Patch, Query, Request } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -11,19 +11,25 @@ import { CreateTransactionDto } from './dto/create-transaction.dto';
 export class TransactionsController {
   constructor(private readonly transactionsService: TransactionsService) {}
 
+  @UseGuards(RolesGuard)
+  @Roles(Role.OWNER, Role.MANAGER, Role.CASHIER)
   @Post()
   create(@Request() req, @Body() createTransactionDto: CreateTransactionDto) {
-    return this.transactionsService.create(req.user.id, createTransactionDto);
+    return this.transactionsService.create(req.user, createTransactionDto);
   }
 
+  @UseGuards(RolesGuard)
+  @Roles(Role.OWNER, Role.MANAGER, Role.CASHIER, Role.BARISTA)
   @Get()
-  findAll() {
-    return this.transactionsService.findAll();
+  findAll(@Request() req, @Query('outletId') outletId?: string) {
+    return this.transactionsService.findAll(req.user, outletId);
   }
 
+  @UseGuards(RolesGuard)
+  @Roles(Role.OWNER, Role.MANAGER, Role.CASHIER, Role.BARISTA)
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.transactionsService.findOne(id);
+  findOne(@Request() req, @Param('id') id: string) {
+    return this.transactionsService.findOne(req.user, id);
   }
 
   @UseGuards(RolesGuard)
@@ -33,8 +39,10 @@ export class TransactionsController {
     return this.transactionsService.voidTransaction(id);
   }
 
+  @UseGuards(RolesGuard)
+  @Roles(Role.OWNER, Role.MANAGER, Role.CASHIER, Role.BARISTA)
   @Patch(':id/kitchen')
-  updateKitchenStatus(@Param('id') id: string, @Body('status') status: 'PENDING' | 'DONE') {
-    return this.transactionsService.updateKitchenStatus(id, status);
+  updateKitchenStatus(@Request() req, @Param('id') id: string, @Body('status') status: 'PENDING' | 'IN_PROGRESS' | 'DONE') {
+    return this.transactionsService.updateKitchenStatus(req.user, id, status);
   }
 }

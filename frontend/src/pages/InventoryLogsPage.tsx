@@ -2,9 +2,21 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inventoryLogApi, ingredientApi } from '../lib/api';
 import { Plus, Search, ClipboardList } from 'lucide-react';
+import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
+
+function getLogTone(type: string, quantity: number) {
+  const isPositive = type === 'IN' || type === 'VOID' || (type === 'ADJUSTMENT' && quantity > 0);
+
+  return {
+    background: isPositive ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
+    color: isPositive ? '#047857' : '#b91c1c',
+    signedQuantity: `${isPositive ? '+' : '-'}${Math.abs(quantity)}`,
+  };
+}
 
 export default function InventoryLogsPage() {
   const qc = useQueryClient();
+  const { requireAdjustmentNote } = useAppPublicSettings();
   const [search, setSearch] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState({ ingredientId: '', type: 'IN', quantity: '', notes: '' });
@@ -22,7 +34,17 @@ export default function InventoryLogsPage() {
     }
   });
 
-  const filtered = logs.filter(l => l.ingredient?.name.toLowerCase().includes(search.toLowerCase()) || l.type.includes(search.toUpperCase()));
+  const adjustmentNeedsNote = requireAdjustmentNote && form.type === 'ADJUSTMENT' && !form.notes.trim();
+
+  const filtered = logs.filter((l) => {
+    const query = search.toLowerCase();
+    return (
+      l.ingredient?.name.toLowerCase().includes(query) ||
+      l.type.toLowerCase().includes(query) ||
+      (l.createdByName || l.createdBy || '').toLowerCase().includes(query) ||
+      (l.notes || '').toLowerCase().includes(query)
+    );
+  });
 
   return (
     <div className="main-content">
@@ -60,9 +82,19 @@ export default function InventoryLogsPage() {
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(l => (
+                {filtered.map(l => {
+                  const tone = getLogTone(l.type, l.quantity);
+
+                  return (
                   <tr key={l.id}>
-                    <td>{new Date(l.createdAt).toLocaleString('id-ID')}</td>
+                    <td>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                        <span>{new Date(l.createdAt).toLocaleDateString('id-ID')}</span>
+                        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                          {new Date(l.createdAt).toLocaleTimeString('id-ID')}
+                        </span>
+                      </div>
+                    </td>
                     <td style={{ fontWeight: 600 }}>{l.ingredient?.name}</td>
                     <td>
                       <span style={{ 
@@ -70,19 +102,23 @@ export default function InventoryLogsPage() {
                         borderRadius: '0.25rem', 
                         fontSize: '0.75rem', 
                         fontWeight: 700,
-                        background: l.type === 'IN' || l.type === 'VOID' || l.type === 'ADJUSTMENT' && l.quantity > 0 ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)',
-                        color: l.type === 'IN' || l.type === 'VOID' || l.type === 'ADJUSTMENT' && l.quantity > 0 ? '#047857' : '#b91c1c'
+                        background: tone.background,
+                        color: tone.color
                       }}>
                         {l.type}
                       </span>
                     </td>
-                    <td style={{ fontWeight: 700, color: l.type === 'IN' || l.type === 'VOID' || l.type === 'ADJUSTMENT' && l.quantity > 0 ? 'var(--success)' : 'var(--danger)' }}>
-                      {(l.type === 'IN' || l.type === 'VOID' || (l.type === 'ADJUSTMENT' && l.quantity > 0)) ? '+' : '-'}{l.quantity} {l.ingredient?.unit}
+                    <td style={{ fontWeight: 700, color: tone.color }}>
+                      {tone.signedQuantity} {l.ingredient?.unit}
                     </td>
-                    <td>{l.notes || '-'}</td>
-                    <td>{l.createdBy || 'System'}</td>
+                    <td style={{ maxWidth: 280 }}>{l.notes || '-'}</td>
+                    <td>
+                      <span style={{ padding: '0.25rem 0.55rem', borderRadius: '999px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', fontSize: '0.8rem', fontWeight: 600 }}>
+                        {l.createdByName || l.createdBy || 'System'}
+                      </span>
+                    </td>
                   </tr>
-                ))}
+                )})}
                 {filtered.length === 0 && (
                   <tr><td colSpan={6} style={{ textAlign: 'center', padding: '2rem' }}>Tidak ada log pergerakan</td></tr>
                 )}
@@ -118,10 +154,21 @@ export default function InventoryLogsPage() {
             <div className="form-group">
               <label>Catatan Tambahan</label>
               <input type="text" className="input" placeholder="contoh: Restock mingguan" value={form.notes} onChange={e => setForm({...form, notes: e.target.value})} />
+              {requireAdjustmentNote && form.type === 'ADJUSTMENT' && (
+                <small style={{ color: adjustmentNeedsNote ? 'var(--danger)' : 'var(--text-muted)' }}>
+                  Stock adjustment wajib menyertakan catatan alasan/opname.
+                </small>
+              )}
             </div>
             <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
               <button className="btn btn-secondary" onClick={() => setIsOpen(false)}>Batal</button>
-              <button className="btn btn-primary" onClick={() => createMut.mutate()} disabled={!form.ingredientId || !form.quantity || createMut.isPending}>Simpan Log</button>
+              <button
+                className="btn btn-primary"
+                onClick={() => createMut.mutate()}
+                disabled={!form.ingredientId || !form.quantity || adjustmentNeedsNote || createMut.isPending}
+              >
+                Simpan Log
+              </button>
             </div>
           </div>
         </div>

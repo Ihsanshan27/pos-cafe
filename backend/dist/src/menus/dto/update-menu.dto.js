@@ -40,7 +40,7 @@ __decorate([
 ], UpdateMenuDto.prototype, "sellingPrice", void 0);
 __decorate([
     (0, class_validator_1.IsOptional)(),
-    (0, class_validator_1.IsUrl)(),
+    (0, class_validator_1.IsString)(),
     __metadata("design:type", String)
 ], UpdateMenuDto.prototype, "imageUrl", void 0);
 __decorate([

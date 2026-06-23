@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { menuApi, ingredientApi, categoryApi } from '../lib/api';
+import { menuApi, ingredientApi, categoryApi, resolveMediaUrl } from '../lib/api';
 import type { Menu, CreateMenuPayload, Category } from '../lib/api';
 import { Plus, Search, Pencil, Trash2, UtensilsCrossed, X, Check, TrendingUp, Eye } from 'lucide-react';
 
@@ -50,19 +50,37 @@ export default function MenusPage() {
   const createMut = useMutation({
     mutationFn: (f: FormData) => menuApi.create(buildPayload(f) as any),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['menus'] }); setModal(null); showToast('Menu created!'); },
-    onError: () => showToast('Failed to create menu', 'error'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message;
+      showToast(Array.isArray(msg) ? msg.join(', ') : msg || 'Failed to create menu', 'error');
+    },
   });
 
   const updateMut = useMutation({
     mutationFn: (f: FormData) => menuApi.update(selected!.id, buildPayload(f) as any),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['menus'] }); setModal(null); showToast('Menu updated!'); },
-    onError: () => showToast('Failed to update menu', 'error'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message;
+      showToast(Array.isArray(msg) ? msg.join(', ') : msg || 'Failed to update menu', 'error');
+    },
   });
 
   const deleteMut = useMutation({
     mutationFn: (id: string) => menuApi.delete(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['menus'] }); showToast('Menu deleted!'); },
     onError: () => showToast('Failed to delete menu', 'error'),
+  });
+
+  const uploadImageMut = useMutation({
+    mutationFn: (file: File) => menuApi.uploadImage(file),
+    onSuccess: ({ imageUrl }) => {
+      setForm((prev) => ({ ...prev, imageUrl }));
+      showToast('Image uploaded successfully!');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message;
+      showToast(Array.isArray(msg) ? msg.join(', ') : msg || 'Failed to upload image', 'error');
+    },
   });
 
   const openCreate = () => { setForm(emptyForm); setModal('create'); };
@@ -140,7 +158,22 @@ export default function MenusPage() {
                   const pct = profitPct(m);
                   return (
                     <tr key={m.id}>
-                      <td style={{ fontWeight: 600 }}>{m.name}</td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                          {m.imageUrl ? (
+                            <img
+                              src={resolveMediaUrl(m.imageUrl)}
+                              alt={m.name}
+                              style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: '0.6rem', border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}
+                            />
+                          ) : (
+                            <div style={{ width: 44, height: 44, borderRadius: '0.6rem', border: '1px solid var(--border)', background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.18))', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem' }}>
+                              ☕
+                            </div>
+                          )}
+                          <div style={{ fontWeight: 600 }}>{m.name}</div>
+                        </div>
+                      </td>
                       <td style={{ color: 'var(--text-muted)' }}>{(m as any).category?.name || '-'}</td>
                       <td style={{ fontWeight: 700, color: 'var(--success)' }}>{formatCurrency(Number(m.sellingPrice))}</td>
                       <td style={{ color: 'var(--warning)' }}>{formatCurrency(Number(m.hpp))}</td>
@@ -178,6 +211,19 @@ export default function MenusPage() {
             </div>
             
             <div style={{ padding: '0.5rem 0' }}>
+              <div style={{ width: '100%', height: 180, borderRadius: '0.8rem', overflow: 'hidden', marginBottom: '1rem', background: 'var(--bg-secondary)', border: '1px solid var(--border)' }}>
+                {selected.imageUrl ? (
+                  <img
+                    src={resolveMediaUrl(selected.imageUrl)}
+                    alt={selected.name}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  />
+                ) : (
+                  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '3rem', background: 'linear-gradient(135deg, rgba(99,102,241,0.12), rgba(139,92,246,0.18))' }}>
+                    ☕
+                  </div>
+                )}
+              </div>
               <h4 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '0.25rem' }}>{selected.name}</h4>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>{selected.description || 'No description available.'}</p>
               
@@ -234,6 +280,49 @@ export default function MenusPage() {
                 <label>Description</label>
                 <textarea rows={2} placeholder="Optional description..." value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
               </div>
+              <div className="form-group">
+                <label>Image URL</label>
+                <input
+                  type="url"
+                  placeholder="https://example.com/menu-image.jpg"
+                  value={form.imageUrl}
+                  onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                />
+                <small style={{ color: 'var(--text-muted)' }}>Masukkan link gambar menu. Kosongkan jika belum ada.</small>
+              </div>
+              <div className="form-group">
+                <label>Upload Image</label>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      uploadImageMut.mutate(file);
+                    }
+                    e.currentTarget.value = '';
+                  }}
+                />
+                <small style={{ color: 'var(--text-muted)' }}>
+                  Upload ke server lokal (`/img`). Maksimal 5 MB. Jika upload dipakai, field URL akan terisi otomatis.
+                </small>
+              </div>
+              {form.imageUrl && (
+                <div style={{ marginBottom: '1rem' }}>
+                  <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-muted)' }}>Preview</div>
+                  <img
+                    src={resolveMediaUrl(form.imageUrl)}
+                    alt="Preview menu"
+                    style={{ width: '100%', maxWidth: 220, height: 140, objectFit: 'cover', borderRadius: '0.75rem', border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}
+                    onError={(e) => {
+                      e.currentTarget.style.display = 'none';
+                    }}
+                    onLoad={(e) => {
+                      e.currentTarget.style.display = 'block';
+                    }}
+                  />
+                </div>
+              )}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                 <div className="form-group">
                   <label>Category</label>
@@ -279,7 +368,7 @@ export default function MenusPage() {
               <button className="btn btn-secondary" onClick={() => setModal(null)}>Cancel</button>
               <button
                 className="btn btn-primary"
-                disabled={createMut.isPending || updateMut.isPending}
+                disabled={createMut.isPending || updateMut.isPending || uploadImageMut.isPending}
                 onClick={() => modal === 'create' ? createMut.mutate(form) : updateMut.mutate(form)}
               >
                 <Check size={16} /> {modal === 'create' ? 'Create' : 'Save Changes'}

@@ -12,12 +12,21 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.InventoryLogsService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const settings_service_1 = require("../settings/settings.service");
 let InventoryLogsService = class InventoryLogsService {
     prisma;
-    constructor(prisma) {
+    settingsService;
+    constructor(prisma, settingsService) {
         this.prisma = prisma;
+        this.settingsService = settingsService;
     }
     async create(data) {
+        const normalizedNotes = data.notes?.trim();
+        const requireAdjustmentNoteSetting = await this.settingsService.getSetting('REQUIRE_ADJUSTMENT_NOTE');
+        const requireAdjustmentNote = requireAdjustmentNoteSetting?.value !== 'false';
+        if (data.type === 'ADJUSTMENT' && requireAdjustmentNote && !normalizedNotes) {
+            throw new common_1.BadRequestException('Adjustment note is required');
+        }
         const ingredient = await this.prisma.ingredient.findUnique({ where: { id: data.ingredientId } });
         if (!ingredient)
             throw new common_1.BadRequestException('Ingredient not found');
@@ -34,6 +43,9 @@ let InventoryLogsService = class InventoryLogsService {
         else if (data.type === 'ADJUSTMENT') {
             newStock += data.quantity;
         }
+        if (newStock < 0) {
+            throw new common_1.BadRequestException(`Stock for ${ingredient.name} cannot be negative`);
+        }
         await this.prisma.ingredient.update({
             where: { id: data.ingredientId },
             data: { stockQuantity: newStock }
@@ -43,7 +55,7 @@ let InventoryLogsService = class InventoryLogsService {
                 ingredientId: data.ingredientId,
                 type: data.type,
                 quantity: data.quantity,
-                notes: data.notes,
+                notes: normalizedNotes,
                 createdBy: data.createdBy,
             }
         });
@@ -52,12 +64,30 @@ let InventoryLogsService = class InventoryLogsService {
         return this.prisma.inventoryLog.findMany({
             include: { ingredient: true },
             orderBy: { createdAt: 'desc' },
+        }).then(async (logs) => {
+            const createdByIds = Array.from(new Set(logs
+                .map((log) => log.createdBy)
+                .filter((value) => typeof value === 'string' && /^[0-9a-f-]{36}$/i.test(value))));
+            const users = createdByIds.length
+                ? await this.prisma.user.findMany({
+                    where: { id: { in: createdByIds } },
+                    select: { id: true, name: true },
+                })
+                : [];
+            const userMap = new Map(users.map((user) => [user.id, user.name]));
+            return logs.map((log) => ({
+                ...log,
+                createdByName: typeof log.createdBy === 'string'
+                    ? userMap.get(log.createdBy) ?? log.createdBy
+                    : null,
+            }));
         });
     }
 };
 exports.InventoryLogsService = InventoryLogsService;
 exports.InventoryLogsService = InventoryLogsService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        settings_service_1.SettingsService])
 ], InventoryLogsService);
 //# sourceMappingURL=inventory-logs.service.js.map

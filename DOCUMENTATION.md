@@ -98,27 +98,94 @@ Model utama yang digunakan dalam Prisma:
 
 ---
 
-## 4. Cara Menjalankan Project (Development)
+## 4. Cara Menjalankan Project
 
-Sistem ini membutuhkan Node.js (v18+) dan PostgreSQL yang aktif.
+Project ini saat ini dijalankan dengan pola berikut:
+- **Docker Compose** dipakai untuk PostgreSQL saja.
+- **Manual Development** dipakai untuk backend dan frontend.
 
-1. **Jalankan Backend (NestJS)**
+### A. Menjalankan PostgreSQL dengan Docker Compose
+
+Pastikan **Docker Desktop** sudah aktif.
+
+1. **Jalankan database PostgreSQL**
+   ```bash
+   docker compose up -d
+   ```
+
+2. **Akses database**
+   - PostgreSQL Docker: `localhost:5433`
+
+3. **Credential database Docker**
+   - Database: `pos_fnb`
+   - Username: `pos_user`
+   - Password: `pos_password`
+
+4. **Melihat log container**
+   ```bash
+   docker compose logs -f db
+   ```
+
+5. **Menghentikan container database**
+   ```bash
+   docker compose down
+   ```
+
+6. **Menghentikan dan menghapus volume database**
+   ```bash
+   docker compose down -v
+   ```
+
+Catatan:
+- Port `5433` di host dipakai agar tidak bentrok dengan PostgreSQL lokal Anda yang sudah memakai `5432`.
+- Untuk backend yang berjalan lokal, isi `DATABASE_URL` di [backend/.env](backend/.env) harus mengarah ke port Docker host, misalnya:
+  `postgresql://pos_user:pos_password@localhost:5433/pos_fnb?schema=public`
+
+### B. Menjalankan Secara Manual (Tanpa Docker)
+
+Sistem ini membutuhkan Node.js (v18+) dan PostgreSQL aktif. PostgreSQL bisa berasal dari Docker Compose di atas.
+
+1. **Siapkan environment backend**
+   - Pastikan isi `DATABASE_URL` di `backend/.env` mengarah ke PostgreSQL lokal Anda.
+
+2. **Jalankan Backend (NestJS)**
    ```bash
    cd backend
    npm install
    npx prisma generate
    npx prisma db push
+   npm run seed
    npm run start:dev
    ```
    *Backend akan berjalan di port `3000`.*
 
-2. **Jalankan Frontend (React/Vite)**
+3. **Jalankan Frontend (React/Vite)**
    ```bash
    cd frontend
    npm install
    npm run dev
    ```
    *Frontend akan berjalan di port `5173` (bisa diakses via `http://localhost:5173`).*
+
+## 5. Akun Default Seed
+
+Jika database sudah di-*seed*, akun default yang tersedia adalah:
+
+| Role | Email | Password |
+|---|---|---|
+| `OWNER` | `owner@shn.com` | `password123` |
+| `MANAGER` | `manager@shn.com` | `password123` |
+| `CASHIER` | `cashier@shn.com` | `password123` |
+| `BARISTA` | `barista@shn.com` | `password123` |
+
+Catatan:
+- Akun di atas hanya tersedia jika proses seed sudah dijalankan.
+- Sumber data akun default ini berasal dari file `backend/prisma/seed.ts`.
+- Untuk mengisi akun default dan data awal, jalankan:
+  ```bash
+  cd backend
+  npm run seed
+  ```
 
 ---
 

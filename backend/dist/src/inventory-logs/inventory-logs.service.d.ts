@@ -1,8 +1,10 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { LogType } from '@prisma/client';
+import { SettingsService } from '../settings/settings.service';
 export declare class InventoryLogsService {
     private prisma;
-    constructor(prisma: PrismaService);
+    private settingsService;
+    constructor(prisma: PrismaService, settingsService: SettingsService);
     create(data: {
         ingredientId: string;
         type: LogType;
@@ -18,7 +20,8 @@ export declare class InventoryLogsService {
         type: import("@prisma/client").$Enums.LogType;
         createdBy: string | null;
     }>;
-    findAll(): import("@prisma/client").Prisma.PrismaPromise<({
+    findAll(): Promise<{
+        createdByName: string | null;
         ingredient: {
             id: string;
             name: string;
@@ -28,7 +31,6 @@ export declare class InventoryLogsService {
             createdAt: Date;
             updatedAt: Date;
         };
-    } & {
         id: string;
         createdAt: Date;
         quantity: number;
@@ -36,5 +38,5 @@ export declare class InventoryLogsService {
         notes: string | null;
         type: import("@prisma/client").$Enums.LogType;
         createdBy: string | null;
-    })[]>;
+    }[]>;
 }

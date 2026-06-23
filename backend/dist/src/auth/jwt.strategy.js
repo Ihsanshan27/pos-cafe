@@ -14,29 +14,43 @@ const common_1 = require("@nestjs/common");
 const passport_1 = require("@nestjs/passport");
 const passport_jwt_1 = require("passport-jwt");
 const prisma_service_1 = require("../prisma/prisma.service");
+const settings_service_1 = require("../settings/settings.service");
+const user_response_util_1 = require("../common/user-response.util");
+function getJwtSecret() {
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+        throw new Error('JWT_SECRET environment variable is required');
+    }
+    return jwtSecret;
+}
 let JwtStrategy = class JwtStrategy extends (0, passport_1.PassportStrategy)(passport_jwt_1.Strategy) {
     prisma;
-    constructor(prisma) {
+    settingsService;
+    constructor(prisma, settingsService) {
         super({
             jwtFromRequest: passport_jwt_1.ExtractJwt.fromAuthHeaderAsBearerToken(),
             ignoreExpiration: false,
-            secretOrKey: process.env.JWT_SECRET ?? 'pos-fnb-secret-key',
+            secretOrKey: getJwtSecret(),
         });
         this.prisma = prisma;
+        this.settingsService = settingsService;
     }
     async validate(payload) {
         const user = await this.prisma.user.findUnique({
             where: { id: payload.sub },
+            include: { outlet: true },
         });
         if (!user)
             throw new common_1.UnauthorizedException();
-        const { password, ...result } = user;
-        return result;
+        return {
+            ...(0, user_response_util_1.sanitizeUser)(user),
+            mustChangePassword: await this.settingsService.getForcePasswordChangeRequired(user.id),
+        };
     }
 };
 exports.JwtStrategy = JwtStrategy;
 exports.JwtStrategy = JwtStrategy = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService, settings_service_1.SettingsService])
 ], JwtStrategy);
 //# sourceMappingURL=jwt.strategy.js.map

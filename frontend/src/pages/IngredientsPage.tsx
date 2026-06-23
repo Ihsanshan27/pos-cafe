@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ingredientApi } from '../lib/api';
 import type { Ingredient } from '../lib/api';
 import { Plus, Search, Pencil, Trash2, Package, X, Check } from 'lucide-react';
+import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
 
 function formatCurrency(val: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
@@ -11,8 +12,21 @@ function formatCurrency(val: number) {
 type FormData = { name: string; unit: string; costPerUnit: string; stockQuantity: string };
 const empty: FormData = { name: '', unit: '', costPerUnit: '', stockQuantity: '' };
 
+function getStockStatus(stockQuantity: number, lowStockThreshold: number) {
+  if (stockQuantity < lowStockThreshold) {
+    return { label: 'Low Stock', className: 'badge-danger' };
+  }
+
+  if (stockQuantity < Math.max(lowStockThreshold * 3, lowStockThreshold + 1)) {
+    return { label: 'Medium', className: 'badge-warning' };
+  }
+
+  return { label: 'Good', className: 'badge-success' };
+}
+
 export default function IngredientsPage() {
   const qc = useQueryClient();
+  const { lowStockThreshold } = useAppPublicSettings();
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState<'create' | 'edit' | null>(null);
   const [selected, setSelected] = useState<Ingredient | null>(null);
@@ -103,8 +117,8 @@ export default function IngredientsPage() {
                     <td>{formatCurrency(Number(i.costPerUnit))}</td>
                     <td style={{ fontWeight: 600 }}>{i.stockQuantity}</td>
                     <td>
-                      <span className={`badge ${i.stockQuantity < 10 ? 'badge-danger' : i.stockQuantity < 50 ? 'badge-warning' : 'badge-success'}`}>
-                        {i.stockQuantity < 10 ? 'Low Stock' : i.stockQuantity < 50 ? 'Medium' : 'Good'}
+                      <span className={`badge ${getStockStatus(i.stockQuantity, lowStockThreshold).className}`}>
+                        {getStockStatus(i.stockQuantity, lowStockThreshold).label}
                       </span>
                     </td>
                     <td>

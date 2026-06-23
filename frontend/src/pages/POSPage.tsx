@@ -1,9 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { menuApi, transactionApi, categoryApi, discountApi, shiftApi, settingsApi, customerApi } from '../lib/api';
+import { menuApi, transactionApi, categoryApi, discountApi, shiftApi, customerApi, resolveMediaUrl } from '../lib/api';
 import type { Menu, Transaction, Category, Discount, Shift, Customer } from '../lib/api';
-import { Search, ShoppingCart, X, Plus, Minus, CheckCircle, Trash2, Printer, Percent, MapPin, Hash, LogIn, Info, User } from 'lucide-react';
+import { Search, ShoppingCart, X, Plus, Minus, CheckCircle, Trash2, Printer, Percent, MapPin, Hash, LogIn, Info, User, SlidersHorizontal } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
+import { calculatePricing } from '../lib/pricing';
+import { useActiveOutlet } from '../hooks/useActiveOutlet';
 
 function formatCurrency(val: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
@@ -11,9 +14,53 @@ function formatCurrency(val: number) {
 
 type CartItem = { menu: Menu; quantity: number; notes?: string };
 
+function getMenuAvailability(menu: Menu, lowStockThreshold: number) {
+  if (!menu.ingredients || menu.ingredients.length === 0) {
+    return {
+      isLowStock: false,
+      isBlocked: false,
+      reason: '',
+    };
+  }
+
+  const criticalIngredient = menu.ingredients.find((item) => item.ingredient.stockQuantity < lowStockThreshold);
+  return {
+    isLowStock: Boolean(criticalIngredient),
+    isBlocked: Boolean(criticalIngredient),
+    reason: criticalIngredient
+      ? `${criticalIngredient.ingredient.name} tinggal ${criticalIngredient.ingredient.stockQuantity} ${criticalIngredient.ingredient.unit}`
+      : '',
+  };
+}
+
 export default function POSPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { activeOutletId, activeOutlet } = useActiveOutlet();
+  const {
+    storeName,
+    storeAddress,
+    storePhone,
+    storeLogoUrl,
+    receiptHeader,
+    storeTaxId,
+    receiptFooter,
+    defaultOrderType,
+    requireTableNumber,
+    requireCustomerName,
+    confirmBeforeCheckout,
+    autoPrintReceipt,
+    enabledPaymentMethods,
+    defaultPaymentMethod,
+    qrisPaymentNote,
+    taxEnabled,
+    taxRate,
+    taxInclusive,
+    roundingMode,
+    roundingStep,
+    lowStockThreshold,
+    blockSaleOnLowStock,
+  } = useAppPublicSettings();
   const [search, setSearch] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('ALL');
   
@@ -30,6 +77,8 @@ export default function POSPage() {
   const [receiptTx, setReceiptTx] = useState<Transaction | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
+  const [isOrderSettingsOpen, setIsOrderSettingsOpen] = useState(false);
+  const [hasAppliedOrderDefaults, setHasAppliedOrderDefaults] = useState(false);
   
   const [startingCash, setStartingCash] = useState('');
 
@@ -38,24 +87,119 @@ export default function POSPage() {
   const { data: discounts = [] } = useQuery({ queryKey: ['discounts'], queryFn: discountApi.getAll });
   const { data: customers = [] } = useQuery({ queryKey: ['customers'], queryFn: customerApi.getAll });
   const { data: activeShift, isLoading: isShiftLoading } = useQuery({ 
-    queryKey: ['activeShift'], 
-    queryFn: shiftApi.getActive,
+    queryKey: ['activeShift', activeOutletId], 
+    queryFn: () => shiftApi.getActive(activeOutletId || undefined),
     retry: 0
   });
 
-  const { data: taxEnabledReq } = useQuery({ queryKey: ['settings', 'TAX_ENABLED'], queryFn: () => settingsApi.getSetting('TAX_ENABLED') });
-  const { data: taxRateReq } = useQuery({ queryKey: ['settings', 'TAX_RATE'], queryFn: () => settingsApi.getSetting('TAX_RATE') });
-  
-  const isTaxEnabled = taxEnabledReq?.value === 'true';
-  const taxRate = taxRateReq?.value ? Number(taxRateReq.value) : 10;
+  useEffect(() => {
+    if (hasAppliedOrderDefaults) return;
+    setOrderType(defaultOrderType);
+    setPaymentMethod(defaultPaymentMethod);
+    if (defaultOrderType === 'TAKEAWAY') {
+      setTableNumber('');
+    }
+    setHasAppliedOrderDefaults(true);
+  }, [defaultOrderType, defaultPaymentMethod, hasAppliedOrderDefaults]);
+
+  useEffect(() => {
+    if (!enabledPaymentMethods.includes(paymentMethod)) {
+      setPaymentMethod(defaultPaymentMethod);
+      if (defaultPaymentMethod !== 'CASH') {
+        setCashReceived('');
+      }
+    }
+  }, [defaultPaymentMethod, enabledPaymentMethods, paymentMethod]);
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
     setTimeout(() => setToast(null), 3500);
   };
 
+  const buildReceiptHtml = (tx: Transaction) => `
+    <div style="padding: 2rem; font-family: monospace; background: #fff; color: #000;">
+      <div style="text-align: center; margin-bottom: 1.5rem;">
+        ${storeLogoUrl ? `<img src="${resolveMediaUrl(storeLogoUrl)}" alt="${storeName}" style="width: 52px; height: 52px; object-fit: cover; border-radius: 12px; margin-bottom: 0.75rem; border: 1px solid #ddd; background: white;" />` : ''}
+        ${receiptHeader ? `<div style="font-size: 0.85rem; color: #666; margin-bottom: 0.35rem;">${receiptHeader}</div>` : ''}
+        <h2 style="margin: 0; font-size: 1.5rem; font-weight: 800;">${storeName}</h2>
+        ${storeAddress ? `<div style="font-size: 0.8rem; color: #666; margin-top: 0.35rem;">${storeAddress}</div>` : ''}
+        ${storePhone ? `<div style="font-size: 0.8rem; color: #666;">${storePhone}</div>` : ''}
+        ${storeTaxId ? `<div style="font-size: 0.8rem; color: #666;">${storeTaxId}</div>` : ''}
+        <div style="font-size: 0.85rem; color: #666;">
+          ${(tx as any)?.orderType === 'DINE_IN' ? `DINE IN - Table ${(tx as any).tableNumber}` : 'TAKEAWAY'}
+        </div>
+        ${((tx as any)?.customerName || (tx as any)?.customer?.name) ? `<div style="font-size: 0.9rem; font-weight: 600; margin-top: 0.25rem;">Customer: ${((tx as any)?.customerName || (tx as any)?.customer?.name)}</div>` : ''}
+        <div style="font-size: 0.85rem; color: #666; margin-top: 0.5rem;">
+          ${tx.orderNumber || `Order #${tx.id.slice(0, 8).toUpperCase()}`}<br />
+          ${new Date(tx.createdAt).toLocaleString('id-ID')}<br />
+          Method: ${tx.paymentMethod || 'CASH'}<br />
+          Cashier: ${(tx as any).user?.name || 'System'}
+        </div>
+      </div>
+      <div style="border-top: 1px dashed #ccc; border-bottom: 1px dashed #ccc; padding: 1rem 0; margin-bottom: 1rem;">
+        ${tx.items.map((item) => `
+          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
+            <div style="flex: 1;">
+              <div style="font-weight: 600;">${item.menu?.name || 'Unknown Menu'}</div>
+              ${(item as any).notes ? `<div style="font-size: 0.75rem; color: #888; font-style: italic;">Note: ${(item as any).notes}</div>` : ''}
+              <div style="color: #666; font-size: 0.8rem;">${item.quantity} x ${formatCurrency(Number(item.priceAtSale))}</div>
+            </div>
+            <div style="font-weight: 600;">${formatCurrency(Number(item.subtotal))}</div>
+          </div>
+        `).join('')}
+      </div>
+      ${Number((tx as any).discountAmount) > 0 ? `
+        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.5rem;">
+          <span>Discount</span>
+          <span>-${formatCurrency(Number((tx as any).discountAmount))}</span>
+        </div>
+      ` : ''}
+      ${Number((tx as any).taxAmount) > 0 ? `
+        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.5rem;">
+          <span>${(tx as any).pricingMetadata?.taxInclusive ? `Included PB1 (${Number((tx as any).pricingMetadata?.taxRate || taxRate)}%)` : `PB1 Tax (${Number((tx as any).pricingMetadata?.taxRate || taxRate)}%)`}</span>
+          <span>${(tx as any).pricingMetadata?.taxInclusive ? formatCurrency(Number((tx as any).taxAmount)) : `+${formatCurrency(Number((tx as any).taxAmount))}`}</span>
+        </div>
+      ` : ''}
+      ${Number((tx as any).pricingMetadata?.roundingAdjustment || 0) !== 0 ? `
+        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.5rem;">
+          <span>Rounding</span>
+          <span>${Number((tx as any).pricingMetadata?.roundingAdjustment) > 0 ? '+' : ''}${formatCurrency(Number((tx as any).pricingMetadata?.roundingAdjustment || 0))}</span>
+        </div>
+      ` : ''}
+      <div style="display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: 800;">
+        <span>TOTAL</span>
+        <span>${formatCurrency(Number(tx.totalAmount))}</span>
+      </div>
+      <div style="text-align: center; margin-top: 2rem; font-size: 0.85rem; color: #666;">
+        ${receiptFooter}
+      </div>
+    </div>
+  `;
+
+  const printReceipt = (tx: Transaction) => {
+    const win = window.open('', '', 'width=400,height=600');
+    if (!win) return;
+    win.document.write(`
+      <html>
+        <head>
+          <title>Receipt</title>
+          <style>
+            body { font-family: monospace; margin: 0; padding: 20px; color: black; background: white; }
+          </style>
+        </head>
+        <body>
+          ${buildReceiptHtml(tx)}
+          <script>
+            window.onload = () => { window.print(); window.close(); }
+          </script>
+        </body>
+      </html>
+    `);
+    win.document.close();
+  };
+
   const openShiftMut = useMutation({
-    mutationFn: () => shiftApi.create({ startingCash: Number(startingCash) }),
+    mutationFn: () => shiftApi.create({ startingCash: Number(startingCash), outletId: activeOutletId || undefined }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['activeShift'] });
       showToast('Shift opened successfully');
@@ -74,7 +218,13 @@ export default function POSPage() {
         }
       }
 
-      const taxAmount = isTaxEnabled ? (Math.max(0, cartTotal - discAmt) * (taxRate / 100)) : 0;
+      const pricing = calculatePricing(cartTotal, discAmt, {
+        taxEnabled,
+        taxRate,
+        taxInclusive,
+        roundingMode,
+        roundingStep: Math.max(0, roundingStep),
+      });
 
       return transactionApi.create({ 
         items: cart.map((c) => ({ menuId: c.menu.id, quantity: c.quantity, notes: c.notes })),
@@ -83,21 +233,27 @@ export default function POSPage() {
         tableNumber: orderType === 'DINE_IN' ? tableNumber : undefined,
         customerName: customerName || undefined,
         customerId: selectedCustomerId || undefined,
-        discountAmount: discAmt,
-        taxAmount,
-        shiftId: activeShift?.id
+        discountAmount: pricing.discountAmount,
+        taxAmount: pricing.taxAmount,
+        shiftId: activeShift?.id,
+        outletId: activeOutletId || undefined,
       } as any);
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['transactions'] });
       qc.invalidateQueries({ queryKey: ['ingredients'] });
       setCart([]);
+      setOrderType(defaultOrderType);
+      setPaymentMethod(defaultPaymentMethod);
       setTableNumber('');
       setCustomerName('');
       setSelectedCustomerId('');
       setCashReceived('');
       setSelectedDiscount(null);
       setReceiptTx(data);
+      if (autoPrintReceipt) {
+        setTimeout(() => printReceipt(data), 50);
+      }
       showToast('Order placed successfully! 🎉');
     },
     onError: (err: any) => {
@@ -107,6 +263,12 @@ export default function POSPage() {
   });
 
   const addToCart = (menu: Menu) => {
+    const availability = getMenuAvailability(menu, lowStockThreshold);
+    if (blockSaleOnLowStock && availability.isBlocked) {
+      showToast(`Menu ${menu.name} diblokir: ${availability.reason}`, 'error');
+      return;
+    }
+
     setCart((prev) => {
       const exists = prev.find((c) => c.menu.id === menu.id);
       if (exists) return prev.map((c) => c.menu.id === menu.id ? { ...c, quantity: c.quantity + 1 } : c);
@@ -137,9 +299,23 @@ export default function POSPage() {
     }
   }
 
-  const subtotalAfterDiscount = Math.max(0, cartTotal - discountAmount);
-  const taxAmount = isTaxEnabled ? subtotalAfterDiscount * (taxRate / 100) : 0;
-  const finalTotal = subtotalAfterDiscount + taxAmount;
+  const pricing = calculatePricing(cartTotal, discountAmount, {
+    taxEnabled,
+    taxRate,
+    taxInclusive,
+    roundingMode,
+    roundingStep: Math.max(0, roundingStep),
+  });
+  const subtotalAfterDiscount = pricing.taxableAmount;
+  const taxAmount = pricing.taxAmount;
+  const finalTotal = pricing.totalAmount;
+  const selectedCustomer = customers.find((customer) => customer.id === selectedCustomerId);
+  const orderTypeLabel = orderType === 'DINE_IN' ? `Dine In${tableNumber ? ` • Meja ${tableNumber}` : ''}` : 'Takeaway';
+  const customerLabel = selectedCustomer?.name || customerName || 'Guest';
+  const isTableValid = !requireTableNumber || orderType !== 'DINE_IN' || tableNumber.trim().length > 0;
+  const isCustomerValid = !requireCustomerName || orderType !== 'TAKEAWAY' || Boolean(selectedCustomerId || customerName.trim());
+  const isCashValid = paymentMethod !== 'CASH' || (cashReceived !== '' && Number(cashReceived) >= finalTotal);
+  const canCheckout = cart.length > 0 && !checkoutMut.isPending && isTableValid && isCustomerValid && isCashValid;
 
   const filtered = menus.filter((m) => {
     const matchSearch = m.name.toLowerCase().includes(search.toLowerCase());
@@ -189,7 +365,7 @@ export default function POSPage() {
       <div className="main-content" style={{ flex: 1 }}>
         <div className="page-header" style={{ marginBottom: '1rem' }}>
           <h2>Point of Sale</h2>
-          <p>Select menu items to add to the order</p>
+          <p>Select menu items to add to the order{activeOutlet ? ` • Outlet aktif: ${activeOutlet.name}` : ''}</p>
         </div>
 
         <div className="page-body" style={{ display: 'flex', flexDirection: 'column' }}>
@@ -225,13 +401,19 @@ export default function POSPage() {
             <div className="menu-grid" style={{ paddingBottom: '2rem' }}>
               {filtered.map((menu) => {
                 const inCart = cart.find((c) => c.menu.id === menu.id);
+                const availability = getMenuAvailability(menu, lowStockThreshold);
+                const isMenuBlocked = blockSaleOnLowStock && availability.isBlocked;
                 return (
                   <div
                     key={menu.id}
                     id={`menu-card-${menu.id}`}
                     className="menu-card"
                     onClick={() => addToCart(menu)}
-                    style={inCart ? { borderColor: 'var(--accent)', background: 'rgba(99,102,241,0.07)', position: 'relative' } : { position: 'relative' }}
+                    style={{
+                      ...(inCart ? { borderColor: 'var(--accent)', background: 'rgba(99,102,241,0.07)' } : {}),
+                      ...(isMenuBlocked ? { opacity: 0.55, borderColor: 'rgba(239,68,68,0.35)', background: 'rgba(239,68,68,0.05)' } : {}),
+                      position: 'relative',
+                    }}
                   >
                     <button 
                       className="btn-icon" 
@@ -241,11 +423,37 @@ export default function POSPage() {
                       <Info size={16} color="var(--text-secondary)" />
                     </button>
                     {/* Image placeholder */}
-                    <div style={{ width: '100%', height: 80, borderRadius: '0.5rem', background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2))', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.25rem', fontSize: '2rem' }}>
+                    <div style={{ width: '100%', height: 88, borderRadius: '0.5rem', background: menu.imageUrl ? `url(${resolveMediaUrl(menu.imageUrl)}) center/cover no-repeat` : 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2))', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '0.4rem', fontSize: '2rem', overflow: 'hidden', border: '1px solid var(--border)', color: menu.imageUrl ? 'transparent' : 'inherit' }}>
                       🍽️
                     </div>
                     <div className="menu-card-name">{menu.name}</div>
+                    {(menu as any).category?.name && (
+                      <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>
+                        {(menu as any).category.name}
+                      </div>
+                    )}
                     <div className="menu-card-price">{formatCurrency(Number(menu.sellingPrice))}</div>
+                    {availability.isLowStock && (
+                      <div
+                        style={{
+                          marginTop: '0.35rem',
+                          background: isMenuBlocked ? 'rgba(239,68,68,0.14)' : 'rgba(245,158,11,0.12)',
+                          color: isMenuBlocked ? '#b91c1c' : '#b45309',
+                          borderRadius: '0.375rem',
+                          textAlign: 'center',
+                          fontSize: '0.72rem',
+                          fontWeight: 700,
+                          padding: '0.25rem 0.4rem',
+                        }}
+                      >
+                        {isMenuBlocked ? 'Blocked by low stock' : 'Low stock warning'}
+                      </div>
+                    )}
+                    {availability.isLowStock && availability.reason && (
+                      <div style={{ marginTop: '0.25rem', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                        {availability.reason}
+                      </div>
+                    )}
                     {inCart && (
                       <div style={{ marginTop: '0.25rem', background: 'var(--accent)', color: 'white', borderRadius: '0.375rem', textAlign: 'center', fontSize: '0.75rem', fontWeight: 700, padding: '0.2rem 0' }}>
                         {inCart.quantity} in cart
@@ -317,85 +525,25 @@ export default function POSPage() {
         </div>
 
         <div className="cart-footer" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          
-          {/* Order Type */}
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            <button 
-              className={`btn ${orderType === 'DINE_IN' ? 'btn-primary' : 'btn-secondary'} btn-sm`} 
-              style={{ flex: 1, justifyContent: 'center' }}
-              onClick={() => setOrderType('DINE_IN')}
-            >
-              <MapPin size={14} /> Dine In
-            </button>
-            <button 
-              className={`btn ${orderType === 'TAKEAWAY' ? 'btn-primary' : 'btn-secondary'} btn-sm`} 
-              style={{ flex: 1, justifyContent: 'center' }}
-              onClick={() => setOrderType('TAKEAWAY')}
-            >
-              <ShoppingCart size={14} /> Takeaway
-            </button>
-          </div>
-
-          {orderType === 'DINE_IN' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', padding: '0.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-              <Hash size={16} color="var(--text-muted)" />
-              <input 
-                type="text" 
-                placeholder="Table Number (e.g. 12)" 
-                style={{ border: 'none', background: 'transparent', width: '100%', outline: 'none', color: 'var(--text-primary)' }}
-                value={tableNumber}
-                onChange={(e) => setTableNumber(e.target.value)}
-              />
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+              gap: '0.5rem',
+            }}
+          >
+            <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '0.6rem', padding: '0.65rem 0.75rem' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Order</div>
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, lineHeight: 1.3 }}>{orderTypeLabel}</div>
             </div>
-          )}
-
-          {/* Customer Name / Member */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'var(--bg-primary)', padding: '0.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <User size={16} color="var(--text-muted)" />
-              <select 
-                style={{ border: 'none', background: 'transparent', width: '100%', outline: 'none', color: 'var(--text-primary)' }}
-                value={selectedCustomerId}
-                onChange={(e) => {
-                  setSelectedCustomerId(e.target.value);
-                  if (e.target.value) setCustomerName(''); // clear manual name if member selected
-                }}
-              >
-                <option value="">Guest (Non-Member)</option>
-                {customers.map(c => (
-                  <option key={c.id} value={c.id}>{c.name} ({c.pointBalance} Pts)</option>
-                ))}
-              </select>
+            <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '0.6rem', padding: '0.65rem 0.75rem' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Customer</div>
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, lineHeight: 1.3, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{customerLabel}</div>
             </div>
-            {!selectedCustomerId && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderTop: '1px dashed var(--border)', paddingTop: '0.5rem' }}>
-                <input 
-                  type="text" 
-                  placeholder="Guest Name (Optional)" 
-                  style={{ border: 'none', background: 'transparent', width: '100%', outline: 'none', color: 'var(--text-primary)', paddingLeft: '1.5rem' }}
-                  value={customerName}
-                  onChange={(e) => setCustomerName(e.target.value)}
-                />
-              </div>
-            )}
-          </div>
-
-          {/* Discount */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-primary)', padding: '0.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-            <Percent size={16} color="var(--text-muted)" />
-            <select 
-              style={{ border: 'none', background: 'transparent', width: '100%', outline: 'none', color: 'var(--text-primary)' }}
-              value={selectedDiscount?.id || ''}
-              onChange={(e) => {
-                const disc = discounts.find(d => d.id === e.target.value);
-                setSelectedDiscount(disc || null);
-              }}
-            >
-              <option value="">No Discount</option>
-              {discounts.filter(d => d.isActive).map(d => (
-                <option key={d.id} value={d.id}>{d.code} - {d.type === 'PERCENTAGE' ? `${d.value}%` : formatCurrency(Number(d.value))}</option>
-              ))}
-            </select>
+            <div style={{ background: 'var(--bg-primary)', border: '1px solid var(--border)', borderRadius: '0.6rem', padding: '0.65rem 0.75rem' }}>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>Payment</div>
+              <div style={{ fontSize: '0.8rem', fontWeight: 700, lineHeight: 1.3 }}>{paymentMethod}</div>
+            </div>
           </div>
 
           <div style={{ height: '1px', background: 'var(--border)', margin: '0.25rem 0' }} />
@@ -411,10 +559,16 @@ export default function POSPage() {
               <span>-{formatCurrency(discountAmount)}</span>
             </div>
           )}
-          {isTaxEnabled && (
+          {taxEnabled && (
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: 'var(--text-muted)' }}>
-              <span>PB1 Tax ({taxRate}%)</span>
-              <span>+{formatCurrency(taxAmount)}</span>
+              <span>{taxInclusive ? `Included PB1 (${taxRate}%)` : `PB1 Tax (${taxRate}%)`}</span>
+              <span>{taxInclusive ? formatCurrency(taxAmount) : `+${formatCurrency(taxAmount)}`}</span>
+            </div>
+          )}
+          {pricing.roundingAdjustment !== 0 && (
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', color: pricing.roundingAdjustment > 0 ? 'var(--warning)' : 'var(--text-muted)' }}>
+              <span>Rounding</span>
+              <span>{pricing.roundingAdjustment > 0 ? '+' : ''}{formatCurrency(pricing.roundingAdjustment)}</span>
             </div>
           )}
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '1.2rem', fontWeight: 800 }}>
@@ -422,56 +576,214 @@ export default function POSPage() {
             <span style={{ color: 'var(--accent)' }}>{formatCurrency(finalTotal)}</span>
           </div>
 
-          {/* Payment Method */}
-          <div>
-            <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>Payment Method</label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.25rem' }}>
-              {['CASH', 'QRIS', 'DEBIT', 'EWALLET'].map((pm) => (
-                <button
-                  key={pm}
-                  className={`btn ${paymentMethod === pm ? 'btn-primary' : 'btn-secondary'} btn-sm`}
-                  onClick={() => setPaymentMethod(pm as any)}
-                  style={{ justifyContent: 'center', fontSize: '0.75rem', padding: '0.4rem' }}
-                >
-                  {pm}
-                </button>
-              ))}
+          {!isTableValid && (
+            <div style={{ fontSize: '0.78rem', color: 'var(--warning)' }}>
+              Nomor meja masih wajib diisi untuk pesanan dine in.
             </div>
-          </div>
-
-          {paymentMethod === 'CASH' && (
-            <div style={{ marginTop: '0.5rem', background: 'var(--bg-primary)', padding: '0.5rem', borderRadius: '0.5rem', border: '1px solid var(--border)' }}>
-              <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.25rem', display: 'block' }}>Cash Received (Rp)</label>
-              <input 
-                type="number" 
-                className="form-control" 
-                style={{ marginBottom: '0.25rem' }}
-                value={cashReceived}
-                onChange={(e) => setCashReceived(e.target.value)}
-              />
-              {Number(cashReceived) > 0 && (
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginTop: '0.25rem' }}>
-                  <span style={{ color: 'var(--text-muted)' }}>Change:</span>
-                  <span style={{ fontWeight: 700, color: Number(cashReceived) >= finalTotal ? 'var(--success)' : 'var(--danger)' }}>
-                    {formatCurrency(Number(cashReceived) - finalTotal)}
-                  </span>
-                </div>
-              )}
+          )}
+          {!isCustomerValid && (
+            <div style={{ fontSize: '0.78rem', color: 'var(--warning)' }}>
+              Nama customer masih wajib diisi untuk pesanan takeaway.
+            </div>
+          )}
+          {paymentMethod === 'CASH' && cashReceived !== '' && !isCashValid && (
+            <div style={{ fontSize: '0.78rem', color: 'var(--danger)' }}>
+              Uang tunai belum mencukupi total pesanan.
             </div>
           )}
 
-          <button
-            id="checkout-btn"
-            className="btn btn-success"
-            style={{ width: '100%', justifyContent: 'center', padding: '0.75rem', marginTop: '0.5rem' }}
-            disabled={cart.length === 0 || checkoutMut.isPending || (orderType === 'DINE_IN' && !tableNumber) || (paymentMethod === 'CASH' && (Number(cashReceived) < finalTotal || cashReceived === ''))}
-            onClick={() => setIsConfirmOpen(true)}
-          >
-            <CheckCircle size={18} />
-            {checkoutMut.isPending ? 'Processing...' : 'Checkout Order'}
-          </button>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+            <button
+              className="btn btn-secondary"
+              style={{ justifyContent: 'center' }}
+              onClick={() => setIsOrderSettingsOpen(true)}
+            >
+              <SlidersHorizontal size={16} />
+              Atur Order
+            </button>
+            <button
+              id="checkout-btn"
+              className="btn btn-success"
+              style={{ justifyContent: 'center' }}
+              disabled={cart.length === 0 || checkoutMut.isPending}
+              onClick={() => {
+                if (!canCheckout) {
+                  setIsOrderSettingsOpen(true);
+                  return;
+                }
+                if (confirmBeforeCheckout) {
+                  setIsConfirmOpen(true);
+                  return;
+                }
+                checkoutMut.mutate();
+              }}
+            >
+              <CheckCircle size={18} />
+              {checkoutMut.isPending ? 'Processing...' : 'Checkout'}
+            </button>
+          </div>
         </div>
       </div>
+
+      {isOrderSettingsOpen && (
+        <div className="modal-overlay" onClick={() => setIsOrderSettingsOpen(false)}>
+          <div className="modal" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h3>Pengaturan Order</h3>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                  Atur tipe pesanan, customer, diskon, dan pembayaran tanpa menutupi daftar item.
+                </p>
+              </div>
+              <button className="btn btn-secondary btn-icon btn-sm" onClick={() => setIsOrderSettingsOpen(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  className={`btn ${orderType === 'DINE_IN' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ flex: 1, justifyContent: 'center' }}
+                  onClick={() => setOrderType('DINE_IN')}
+                >
+                  <MapPin size={14} /> Dine In
+                </button>
+                <button
+                  className={`btn ${orderType === 'TAKEAWAY' ? 'btn-primary' : 'btn-secondary'}`}
+                  style={{ flex: 1, justifyContent: 'center' }}
+                  onClick={() => {
+                    setOrderType('TAKEAWAY');
+                    setTableNumber('');
+                  }}
+                >
+                  <ShoppingCart size={14} /> Takeaway
+                </button>
+              </div>
+
+              {orderType === 'DINE_IN' && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--border)' }}>
+                  <Hash size={16} color="var(--text-muted)" />
+                  <input
+                    type="text"
+                    placeholder={requireTableNumber ? 'Table Number (required)' : 'Table Number (optional)'}
+                    style={{ border: 'none', background: 'transparent', width: '100%', outline: 'none', color: 'var(--text-primary)' }}
+                    value={tableNumber}
+                    onChange={(e) => setTableNumber(e.target.value)}
+                  />
+                </div>
+              )}
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <User size={16} color="var(--text-muted)" />
+                  <select
+                    style={{ border: 'none', background: 'transparent', width: '100%', outline: 'none', color: 'var(--text-primary)' }}
+                    value={selectedCustomerId}
+                    onChange={(e) => {
+                      setSelectedCustomerId(e.target.value);
+                      if (e.target.value) setCustomerName('');
+                    }}
+                  >
+                    <option value="">Guest (Non-Member)</option>
+                    {customers.map(c => (
+                      <option key={c.id} value={c.id}>{c.name} ({c.pointBalance} Pts)</option>
+                    ))}
+                  </select>
+                </div>
+                {!selectedCustomerId && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', borderTop: '1px dashed var(--border)', paddingTop: '0.5rem' }}>
+                    <input
+                      type="text"
+                      placeholder={orderType === 'TAKEAWAY' && requireCustomerName ? 'Guest Name (required)' : 'Guest Name (optional)'}
+                      style={{ border: 'none', background: 'transparent', width: '100%', outline: 'none', color: 'var(--text-primary)' }}
+                      value={customerName}
+                      onChange={(e) => setCustomerName(e.target.value)}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--border)' }}>
+                <Percent size={16} color="var(--text-muted)" />
+                <select
+                  style={{ border: 'none', background: 'transparent', width: '100%', outline: 'none', color: 'var(--text-primary)' }}
+                  value={selectedDiscount?.id || ''}
+                  onChange={(e) => {
+                    const disc = discounts.find(d => d.id === e.target.value);
+                    setSelectedDiscount(disc || null);
+                  }}
+                >
+                  <option value="">No Discount</option>
+                  {discounts.filter(d => d.isActive).map(d => (
+                    <option key={d.id} value={d.id}>{d.code} - {d.type === 'PERCENTAGE' ? `${d.value}%` : formatCurrency(Number(d.value))}</option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.35rem', display: 'block' }}>Payment Method</label>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  {enabledPaymentMethods.map((pm) => (
+                    <button
+                      key={pm}
+                      type="button"
+                      className={`btn ${paymentMethod === pm ? 'btn-primary' : 'btn-secondary'}`}
+                      onClick={() => setPaymentMethod(pm as any)}
+                      style={{ justifyContent: 'center' }}
+                    >
+                      {pm}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {paymentMethod === 'CASH' && (
+                <div style={{ background: 'var(--bg-secondary)', padding: '0.75rem', borderRadius: '0.75rem', border: '1px solid var(--border)' }}>
+                  <label style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', marginBottom: '0.35rem', display: 'block' }}>Cash Received (Rp)</label>
+                  <input
+                    type="number"
+                    value={cashReceived}
+                    onChange={(e) => setCashReceived(e.target.value)}
+                  />
+                  {cashReceived !== '' && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginTop: '0.5rem' }}>
+                      <span style={{ color: 'var(--text-muted)' }}>Change</span>
+                      <span style={{ fontWeight: 700, color: Number(cashReceived) >= finalTotal ? 'var(--success)' : 'var(--danger)' }}>
+                        {formatCurrency(Number(cashReceived) - finalTotal)}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {paymentMethod === 'QRIS' && qrisPaymentNote && (
+                <div style={{ background: 'rgba(16, 185, 129, 0.08)', padding: '0.85rem', borderRadius: '0.75rem', border: '1px solid rgba(16, 185, 129, 0.2)', color: 'var(--text-secondary)', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                  <strong style={{ display: 'block', marginBottom: '0.35rem', color: '#047857' }}>Instruksi QRIS</strong>
+                  {qrisPaymentNote}
+                </div>
+              )}
+            </div>
+
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setIsOrderSettingsOpen(false)}>
+                Selesai
+              </button>
+              <button
+                className="btn btn-success"
+                disabled={!canCheckout}
+                onClick={() => {
+                  setIsOrderSettingsOpen(false);
+                  setIsConfirmOpen(true);
+                }}
+              >
+                <CheckCircle size={16} />
+                Lanjut Checkout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Confirm Checkout Modal */}
       {isConfirmOpen && (
@@ -492,10 +804,32 @@ export default function POSPage() {
                 <span style={{ color: 'var(--text-muted)' }}>Payment Method</span>
                 <span style={{ fontWeight: 600 }}>{paymentMethod}</span>
               </div>
+              {paymentMethod === 'QRIS' && qrisPaymentNote && (
+                <div style={{ marginBottom: '0.5rem', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                  QRIS Note: {qrisPaymentNote}
+                </div>
+              )}
               {discountAmount > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', color: 'var(--danger)' }}>
                   <span style={{ color: 'var(--text-muted)' }}>Discount</span>
                   <span style={{ fontWeight: 600 }}>-{formatCurrency(discountAmount)}</span>
+                </div>
+              )}
+              {taxEnabled && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>
+                    {taxInclusive ? `Included PB1 (${taxRate}%)` : `PB1 Tax (${taxRate}%)`}
+                  </span>
+                  <span style={{ fontWeight: 600 }}>{taxInclusive ? formatCurrency(taxAmount) : `+${formatCurrency(taxAmount)}`}</span>
+                </div>
+              )}
+              {pricing.roundingAdjustment !== 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                  <span style={{ color: 'var(--text-muted)' }}>Rounding</span>
+                  <span style={{ fontWeight: 600 }}>
+                    {pricing.roundingAdjustment > 0 ? '+' : ''}
+                    {formatCurrency(pricing.roundingAdjustment)}
+                  </span>
                 </div>
               )}
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid var(--border)', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
@@ -528,7 +862,7 @@ export default function POSPage() {
               </button>
             </div>
             <div style={{ padding: '0.5rem 0' }}>
-              <div style={{ width: '100%', height: 120, borderRadius: '0.5rem', background: 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2))', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem', fontSize: '3rem', position: 'relative' }}>
+              <div style={{ width: '100%', height: 160, borderRadius: '0.5rem', background: detailMenu.imageUrl ? `url(${resolveMediaUrl(detailMenu.imageUrl)}) center/cover no-repeat` : 'linear-gradient(135deg, rgba(99,102,241,0.2), rgba(139,92,246,0.2))', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem', fontSize: '3rem', position: 'relative', overflow: 'hidden', border: '1px solid var(--border)', color: detailMenu.imageUrl ? 'transparent' : 'inherit' }}>
                 🍽️
                 {(detailMenu as any).category?.name && (
                   <span style={{ position: 'absolute', bottom: '0.5rem', left: '0.5rem', background: 'rgba(255,255,255,0.9)', padding: '0.2rem 0.6rem', borderRadius: '1rem', fontSize: '0.75rem', fontWeight: 700, color: 'var(--accent)' }}>
@@ -563,7 +897,16 @@ export default function POSPage() {
               )}
             </div>
             <div className="modal-actions" style={{ marginTop: '1.5rem' }}>
-              <button className="btn btn-primary" style={{ width: '100%', justifyContent: 'center' }} onClick={() => { addToCart(detailMenu); setDetailMenu(null); }}>
+              <button
+                className="btn btn-primary"
+                style={{ width: '100%', justifyContent: 'center' }}
+                onClick={() => {
+                  addToCart(detailMenu);
+                  if (!(blockSaleOnLowStock && getMenuAvailability(detailMenu, lowStockThreshold).isBlocked)) {
+                    setDetailMenu(null);
+                  }
+                }}
+              >
                 <ShoppingCart size={16} /> Add to Order
               </button>
             </div>
@@ -577,7 +920,19 @@ export default function POSPage() {
           <div className="modal" style={{ maxWidth: 380, padding: 0, overflow: 'hidden' }} onClick={(e) => e.stopPropagation()}>
             <div id="receipt-content" style={{ padding: '2rem', fontFamily: 'monospace', background: '#fff', color: '#000' }}>
               <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
-                <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>SHN COFFEE</h2>
+                {storeLogoUrl && (
+                  <img
+                    className="brand-logo-image"
+                    src={resolveMediaUrl(storeLogoUrl)}
+                    alt={storeName}
+                    style={{ width: 52, height: 52, borderRadius: 12, margin: '0 auto 0.75rem', border: '1px solid #ddd', background: 'white' }}
+                  />
+                )}
+                {receiptHeader && <div style={{ fontSize: '0.85rem', color: '#666', marginBottom: '0.35rem' }}>{receiptHeader}</div>}
+                <h2 style={{ margin: 0, fontSize: '1.5rem', fontWeight: 800 }}>{storeName}</h2>
+                {storeAddress && <div style={{ fontSize: '0.8rem', color: '#666', marginTop: '0.35rem' }}>{storeAddress}</div>}
+                {storePhone && <div style={{ fontSize: '0.8rem', color: '#666' }}>{storePhone}</div>}
+                {storeTaxId && <div style={{ fontSize: '0.8rem', color: '#666' }}>{storeTaxId}</div>}
                 <div style={{ fontSize: '0.85rem', color: '#666' }}>
                   {(receiptTx as any)?.orderType === 'DINE_IN' ? `DINE IN - Table ${(receiptTx as any).tableNumber}` : 'TAKEAWAY'}
                 </div>
@@ -621,8 +976,25 @@ export default function POSPage() {
 
               {(receiptTx as any).taxAmount > 0 && (
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
-                  <span>PB1 Tax</span>
-                  <span>+{formatCurrency(Number((receiptTx as any).taxAmount))}</span>
+                  <span>
+                    {(receiptTx as any).pricingMetadata?.taxInclusive
+                      ? `Included PB1 (${Number((receiptTx as any).pricingMetadata?.taxRate || taxRate)}%)`
+                      : `PB1 Tax (${Number((receiptTx as any).pricingMetadata?.taxRate || taxRate)}%)`}
+                  </span>
+                  <span>
+                    {(receiptTx as any).pricingMetadata?.taxInclusive ? '' : '+'}
+                    {formatCurrency(Number((receiptTx as any).taxAmount))}
+                  </span>
+                </div>
+              )}
+
+              {Number((receiptTx as any).pricingMetadata?.roundingAdjustment || 0) !== 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem', marginBottom: '0.5rem' }}>
+                  <span>Rounding</span>
+                  <span>
+                    {Number((receiptTx as any).pricingMetadata?.roundingAdjustment) > 0 ? '+' : ''}
+                    {formatCurrency(Number((receiptTx as any).pricingMetadata?.roundingAdjustment || 0))}
+                  </span>
                 </div>
               )}
 
@@ -632,7 +1004,7 @@ export default function POSPage() {
               </div>
               
               <div style={{ textAlign: 'center', marginTop: '2rem', fontSize: '0.85rem', color: '#666' }}>
-                Thank you for your order - SHN COFFEE!
+                {receiptFooter}
               </div>
             </div>
 
@@ -684,29 +1056,7 @@ export default function POSPage() {
               </button>
               <button 
                 style={{ flex: 1, padding: '1rem', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                onClick={() => {
-                  const content = document.getElementById('receipt-content')?.innerHTML;
-                  const win = window.open('', '', 'width=400,height=600');
-                  if (win) {
-                    win.document.write(`
-                      <html>
-                        <head>
-                          <title>Receipt</title>
-                          <style>
-                            body { font-family: monospace; margin: 0; padding: 20px; color: black; background: white; }
-                          </style>
-                        </head>
-                        <body>
-                          ${content}
-                          <script>
-                            window.onload = () => { window.print(); window.close(); }
-                          </script>
-                        </body>
-                      </html>
-                    `);
-                    win.document.close();
-                  }
-                }}
+                onClick={() => printReceipt(receiptTx)}
               >
                 <Printer size={16} /> Print
               </button>

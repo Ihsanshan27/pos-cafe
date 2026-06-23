@@ -47,12 +47,17 @@ const common_1 = require("@nestjs/common");
 const jwt_1 = require("@nestjs/jwt");
 const prisma_service_1 = require("../prisma/prisma.service");
 const bcrypt = __importStar(require("bcrypt"));
+const settings_service_1 = require("../settings/settings.service");
+const client_1 = require("@prisma/client");
+const user_response_util_1 = require("../common/user-response.util");
 let AuthService = class AuthService {
     prisma;
     jwtService;
-    constructor(prisma, jwtService) {
+    settingsService;
+    constructor(prisma, jwtService, settingsService) {
         this.prisma = prisma;
         this.jwtService = jwtService;
+        this.settingsService = settingsService;
     }
     async register(dto) {
         const exists = await this.prisma.user.findUnique({
@@ -66,15 +71,21 @@ let AuthService = class AuthService {
                 name: dto.name,
                 email: dto.email,
                 password: hashedPassword,
-                role: dto.role,
+                role: client_1.Role.CASHIER,
+            },
+            include: {
+                outlet: true,
             },
         });
-        const { password, ...result } = user;
-        return result;
+        return {
+            ...(0, user_response_util_1.sanitizeUser)(user),
+            mustChangePassword: await this.settingsService.getForcePasswordChangeRequired(user.id),
+        };
     }
     async login(dto) {
         const user = await this.prisma.user.findUnique({
             where: { email: dto.email },
+            include: { outlet: true },
         });
         if (!user)
             throw new common_1.UnauthorizedException('Invalid email or password');
@@ -83,10 +94,12 @@ let AuthService = class AuthService {
             throw new common_1.UnauthorizedException('Invalid email or password');
         const payload = { sub: user.id, email: user.email, role: user.role };
         const accessToken = this.jwtService.sign(payload);
-        const { password, ...userWithoutPassword } = user;
         return {
             accessToken,
-            user: userWithoutPassword,
+            user: {
+                ...(0, user_response_util_1.sanitizeUser)(user),
+                mustChangePassword: await this.settingsService.getForcePasswordChangeRequired(user.id),
+            },
         };
     }
     async updateProfile(userId, data) {
@@ -109,15 +122,22 @@ let AuthService = class AuthService {
         const updatedUser = await this.prisma.user.update({
             where: { id: userId },
             data: updateData,
+            include: { outlet: true },
         });
-        const { password, ...result } = updatedUser;
-        return result;
+        if (data.password) {
+            await this.settingsService.markPasswordChanged(userId);
+        }
+        return {
+            ...(0, user_response_util_1.sanitizeUser)(updatedUser),
+            mustChangePassword: await this.settingsService.getForcePasswordChangeRequired(userId),
+        };
     }
 };
 exports.AuthService = AuthService;
 exports.AuthService = AuthService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        jwt_1.JwtService])
+        jwt_1.JwtService,
+        settings_service_1.SettingsService])
 ], AuthService);
 //# sourceMappingURL=auth.service.js.map

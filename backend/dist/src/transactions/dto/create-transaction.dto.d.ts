@@ -1,4 +1,4 @@
-import { TransactionStatus, PaymentMethod, OrderType } from '@prisma/client';
+import { TransactionStatus, PaymentMethod, OrderType, TransactionSource } from '@prisma/client';
 export declare class TransactionItemDto {
     menuId: string;
     quantity: number;
@@ -15,4 +15,6 @@ export declare class CreateTransactionDto {
     shiftId?: string;
     customerName?: string;
     customerId?: string;
+    outletId?: string;
+    source?: TransactionSource;
 }

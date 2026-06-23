@@ -11,10 +11,13 @@ model User {
   name      String
   email     String   @unique
   password  String
+  outletId     String?
+  outlet       Outlet?        @relation(fields: [outletId], references: [id], onDelete: SetNull)
   role         Role          @default(CASHIER)
   createdAt    DateTime      @default(now())
   transactions Transaction[]
   shifts       Shift[]
+  purchaseOrders PurchaseOrder[]
 }
 
 enum Role {
@@ -34,6 +37,24 @@ model Ingredient {
   updatedAt     DateTime     @updatedAt
   recipes       RecipeItem[]
   inventoryLogs InventoryLog[]
+  purchaseOrderItems PurchaseOrderItem[]
+}
+
+model Outlet {
+  id           String        @id @default(uuid())
+  name         String
+  slug         String        @unique
+  address      String?
+  phone        String?
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  users        User[]
+  shifts       Shift[]
+  transactions Transaction[]
+  expenses     Expense[]
+  purchaseOrders PurchaseOrder[]
+  tableQRCodes TableQRCode[]
 }
 
 model Category {
@@ -71,6 +92,8 @@ model Expense {
   id          String   @id @default(uuid())
   description String
   amount      Decimal
+  outletId    String?
+  outlet      Outlet?  @relation(fields: [outletId], references: [id], onDelete: SetNull)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 }
@@ -99,6 +122,8 @@ model Shift {
   id               String        @id @default(uuid())
   userId           String
   user             User          @relation(fields: [userId], references: [id])
+  outletId         String?
+  outlet           Outlet?       @relation(fields: [outletId], references: [id], onDelete: SetNull)
   startTime        DateTime      @default(now())
   endTime          DateTime?
   startingCash     Decimal
@@ -110,11 +135,14 @@ model Shift {
 model Transaction {
   id             String            @id @default(uuid())
   orderNumber    String?           @unique
+  source         TransactionSource @default(POS)
   totalAmount    Decimal
   paymentMethod  PaymentMethod     @default(CASH)
   status         TransactionStatus @default(COMPLETED)
   orderType      OrderType         @default(DINE_IN)
   tableNumber    String?
+  outletId       String?
+  outlet         Outlet?           @relation(fields: [outletId], references: [id], onDelete: SetNull)
   discountAmount Decimal           @default(0)
   taxAmount      Decimal           @default(0)
   customerName   String?
@@ -127,6 +155,11 @@ model Transaction {
   createdAt      DateTime          @default(now())
   kitchenStatus  KitchenStatus     @default(PENDING)
   items          TransactionItem[]
+}
+
+enum TransactionSource {
+  POS
+  PUBLIC_QR
 }
 
 enum KitchenStatus {
@@ -192,4 +225,66 @@ enum LogType {
   SALE
   VOID
   ADJUSTMENT
+}
+
+model Supplier {
+  id          String          @id @default(uuid())
+  name        String
+  phone       String?
+  email       String?
+  address     String?
+  notes       String?
+  isActive    Boolean         @default(true)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  purchaseOrders PurchaseOrder[]
+}
+
+model PurchaseOrder {
+  id           String              @id @default(uuid())
+  orderNumber  String              @unique
+  supplierId   String
+  supplier     Supplier            @relation(fields: [supplierId], references: [id], onDelete: Restrict)
+  outletId     String?
+  outlet       Outlet?             @relation(fields: [outletId], references: [id], onDelete: SetNull)
+  createdById  String?
+  createdBy    User?               @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  status       PurchaseOrderStatus @default(DRAFT)
+  notes        String?
+  expectedDate DateTime?
+  receivedAt   DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  items        PurchaseOrderItem[]
+}
+
+model PurchaseOrderItem {
+  id              String        @id @default(uuid())
+  purchaseOrderId String
+  purchaseOrder   PurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  ingredientId    String
+  ingredient      Ingredient    @relation(fields: [ingredientId], references: [id], onDelete: Restrict)
+  quantity        Float
+  unitCost        Decimal
+  receivedQuantity Float        @default(0)
+}
+
+enum PurchaseOrderStatus {
+  DRAFT
+  ORDERED
+  RECEIVED
+  CANCELLED
+}
+
+model TableQRCode {
+  id          String   @id @default(uuid())
+  outletId    String
+  outlet      Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  code        String
+  label       String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([outletId, code])
 }

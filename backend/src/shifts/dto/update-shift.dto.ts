@@ -1,11 +1,13 @@
-import { IsNumber, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsIn, IsNumber, IsOptional } from 'class-validator';
 
 export class UpdateShiftDto {
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   actualEndingCash?: number;
 
   @IsOptional()
-  @IsString()
-  status?: string;
+  @IsIn(['OPEN', 'CLOSED'])
+  status?: 'OPEN' | 'CLOSED';
 }

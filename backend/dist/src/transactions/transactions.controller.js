@@ -26,23 +26,25 @@ let TransactionsController = class TransactionsController {
         this.transactionsService = transactionsService;
     }
     create(req, createTransactionDto) {
-        return this.transactionsService.create(req.user.id, createTransactionDto);
+        return this.transactionsService.create(req.user, createTransactionDto);
     }
-    findAll() {
-        return this.transactionsService.findAll();
+    findAll(req, outletId) {
+        return this.transactionsService.findAll(req.user, outletId);
     }
-    findOne(id) {
-        return this.transactionsService.findOne(id);
+    findOne(req, id) {
+        return this.transactionsService.findOne(req.user, id);
     }
     voidTransaction(id) {
         return this.transactionsService.voidTransaction(id);
     }
-    updateKitchenStatus(id, status) {
-        return this.transactionsService.updateKitchenStatus(id, status);
+    updateKitchenStatus(req, id, status) {
+        return this.transactionsService.updateKitchenStatus(req.user, id, status);
     }
 };
 exports.TransactionsController = TransactionsController;
 __decorate([
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER, client_1.Role.CASHIER),
     (0, common_1.Post)(),
     __param(0, (0, common_1.Request)()),
     __param(1, (0, common_1.Body)()),
@@ -51,16 +53,23 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], TransactionsController.prototype, "create", null);
 __decorate([
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER, client_1.Role.CASHIER, client_1.Role.BARISTA),
     (0, common_1.Get)(),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Query)('outletId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], TransactionsController.prototype, "findAll", null);
 __decorate([
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER, client_1.Role.CASHIER, client_1.Role.BARISTA),
     (0, common_1.Get)(':id'),
-    __param(0, (0, common_1.Param)('id')),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], TransactionsController.prototype, "findOne", null);
 __decorate([
@@ -73,11 +82,14 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], TransactionsController.prototype, "voidTransaction", null);
 __decorate([
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER, client_1.Role.CASHIER, client_1.Role.BARISTA),
     (0, common_1.Patch)(':id/kitchen'),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)('status')),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)('status')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, String]),
+    __metadata("design:paramtypes", [Object, String, String]),
     __metadata("design:returntype", void 0)
 ], TransactionsController.prototype, "updateKitchenStatus", null);
 exports.TransactionsController = TransactionsController = __decorate([

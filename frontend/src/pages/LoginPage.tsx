@@ -1,12 +1,14 @@
-import { useState, useEffect } from 'react';
-import { authApi, settingsApi } from '../lib/api';
+import { useEffect, useState } from 'react';
+import { authApi, resolveMediaUrl } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import { ChefHat, Eye, EyeOff, LogIn } from 'lucide-react';
+import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
 
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const { storeName, storePhone, storeLogoUrl, allowRegistration: allowRegistrationSetting } = useAppPublicSettings();
   const [tab, setTab] = useState<'login' | 'register'>('login');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -14,18 +16,22 @@ export default function LoginPage() {
   const [allowRegistration, setAllowRegistration] = useState(true);
 
   useEffect(() => {
-    settingsApi.getAllowRegistration().then(res => setAllowRegistration(res.allowed)).catch(() => {});
+    setAllowRegistration(allowRegistrationSetting);
+  }, [allowRegistrationSetting]);
+
+  useEffect(() => {
+    const timeoutMessage = localStorage.getItem('session_timeout_message');
+    if (timeoutMessage) {
+      setError(timeoutMessage);
+      localStorage.removeItem('session_timeout_message');
+    }
   }, []);
 
-  // Login form
   const [loginForm, setLoginForm] = useState({ email: '', password: '' });
-
-  // Register form
   const [regForm, setRegForm] = useState({
     name: '',
     email: '',
     password: '',
-    role: 'OWNER',
   });
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -60,71 +66,100 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'var(--bg-primary)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '1rem',
-    }}>
-      {/* Background decoration */}
-      <div style={{
-        position: 'fixed',
-        top: '-30%',
-        left: '-10%',
-        width: '600px',
-        height: '600px',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)',
-        pointerEvents: 'none',
-      }} />
-      <div style={{
-        position: 'fixed',
-        bottom: '-20%',
-        right: '-10%',
-        width: '500px',
-        height: '500px',
-        borderRadius: '50%',
-        background: 'radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%)',
-        pointerEvents: 'none',
-      }} />
+    <div
+      style={{
+        minHeight: '100vh',
+        background: 'var(--bg-primary)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '1rem',
+      }}
+    >
+      <div
+        style={{
+          position: 'fixed',
+          top: '-30%',
+          left: '-10%',
+          width: '600px',
+          height: '600px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(99,102,241,0.12) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        }}
+      />
+      <div
+        style={{
+          position: 'fixed',
+          bottom: '-20%',
+          right: '-10%',
+          width: '500px',
+          height: '500px',
+          borderRadius: '50%',
+          background: 'radial-gradient(circle, rgba(139,92,246,0.1) 0%, transparent 70%)',
+          pointerEvents: 'none',
+        }}
+      />
 
       <div style={{ width: '100%', maxWidth: '420px', position: 'relative' }}>
-        {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-          <div style={{
-            width: '56px',
-            height: '56px',
-            background: 'linear-gradient(135deg, var(--accent), #8b5cf6)',
-            borderRadius: '16px',
-            display: 'inline-flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            boxShadow: '0 8px 24px rgba(99,102,241,0.4)',
-            marginBottom: '1rem',
-          }}>
-            <ChefHat size={28} color="white" />
-          </div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.25rem' }}>POS F&amp;B</h1>
-          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Restaurant Management System</p>
+          {storeLogoUrl ? (
+            <img
+              className="brand-logo-image"
+              src={resolveMediaUrl(storeLogoUrl)}
+              alt={storeName}
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 16,
+                margin: '0 auto',
+                marginBottom: '1rem',
+                boxShadow: '0 8px 24px rgba(99,102,241,0.25)',
+                background: 'white',
+                border: '1px solid var(--border)',
+              }}
+            />
+          ) : (
+            <div
+              style={{
+                width: '56px',
+                height: '56px',
+                background: 'linear-gradient(135deg, var(--accent), #8b5cf6)',
+                borderRadius: '16px',
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 8px 24px rgba(99,102,241,0.4)',
+                marginBottom: '1rem',
+              }}
+            >
+              <ChefHat size={28} color="white" />
+            </div>
+          )}
+          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, marginBottom: '0.25rem' }}>{storeName}</h1>
+          <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
+            {storePhone ? `Restaurant Management System - ${storePhone}` : 'Restaurant Management System'}
+          </p>
         </div>
 
-        {/* Card */}
         <div className="card" style={{ padding: '2rem' }}>
-          {/* Tab switch */}
-          <div style={{
-            display: 'flex',
-            background: 'var(--bg-secondary)',
-            borderRadius: '0.5rem',
-            padding: '3px',
-            marginBottom: '1.5rem',
-            border: '1px solid var(--border)',
-          }}>
+          <div
+            style={{
+              display: 'flex',
+              background: 'var(--bg-secondary)',
+              borderRadius: '0.5rem',
+              padding: '3px',
+              marginBottom: '1.5rem',
+              border: '1px solid var(--border)',
+            }}
+          >
             {(allowRegistration ? ['login', 'register'] : ['login']).map((t) => (
               <button
                 key={t}
-                onClick={() => { setTab(t as 'login' | 'register'); setError(''); }}
+                onClick={() => {
+                  setTab(t as 'login' | 'register');
+                  setError('');
+                }}
                 style={{
                   flex: 1,
                   padding: '0.5rem',
@@ -144,22 +179,22 @@ export default function LoginPage() {
             ))}
           </div>
 
-          {/* Error message */}
           {error && (
-            <div style={{
-              background: 'rgba(239,68,68,0.1)',
-              border: '1px solid rgba(239,68,68,0.3)',
-              color: 'var(--danger)',
-              borderRadius: '0.5rem',
-              padding: '0.75rem 1rem',
-              fontSize: '0.875rem',
-              marginBottom: '1rem',
-            }}>
+            <div
+              style={{
+                background: 'rgba(239,68,68,0.1)',
+                border: '1px solid rgba(239,68,68,0.3)',
+                color: 'var(--danger)',
+                borderRadius: '0.5rem',
+                padding: '0.75rem 1rem',
+                fontSize: '0.875rem',
+                marginBottom: '1rem',
+              }}
+            >
               {error}
             </div>
           )}
 
-          {/* Login Form */}
           {tab === 'login' && (
             <form onSubmit={handleLogin}>
               <div className="form-group">
@@ -214,7 +249,6 @@ export default function LoginPage() {
             </form>
           )}
 
-          {/* Register Form */}
           {tab === 'register' && allowRegistration && (
             <form onSubmit={handleRegister}>
               <div className="form-group">
@@ -251,19 +285,6 @@ export default function LoginPage() {
                   minLength={6}
                 />
               </div>
-              <div className="form-group">
-                <label htmlFor="reg-role">Role</label>
-                <select
-                  id="reg-role"
-                  value={regForm.role}
-                  onChange={(e) => setRegForm({ ...regForm, role: e.target.value })}
-                >
-                  <option value="OWNER">Owner</option>
-                  <option value="MANAGER">Manager</option>
-                  <option value="CASHIER">Cashier</option>
-                  <option value="BARISTA">Barista</option>
-                </select>
-              </div>
               <button
                 id="register-btn"
                 type="submit"
@@ -278,7 +299,7 @@ export default function LoginPage() {
         </div>
 
         <p style={{ textAlign: 'center', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '1.5rem' }}>
-          POS F&amp;B &copy; 2024 — Restaurant Management System
+          {storeName} &copy; 2024 - Restaurant Management System
         </p>
       </div>
     </div>

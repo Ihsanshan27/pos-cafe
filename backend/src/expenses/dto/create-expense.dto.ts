@@ -1,4 +1,4 @@
-import { IsString, IsNumber, Min } from 'class-validator';
+import { IsString, IsNumber, Min, IsOptional } from 'class-validator';
 
 export class CreateExpenseDto {
   @IsString()
@@ -7,4 +7,8 @@ export class CreateExpenseDto {
   @IsNumber()
   @Min(0)
   amount: number;
+
+  @IsOptional()
+  @IsString()
+  outletId?: string;
 }

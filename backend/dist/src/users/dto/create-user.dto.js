@@ -17,6 +17,7 @@ class CreateUserDto {
     email;
     password;
     role;
+    outletId;
 }
 exports.CreateUserDto = CreateUserDto;
 __decorate([
@@ -37,4 +38,9 @@ __decorate([
     (0, class_validator_1.IsEnum)(client_1.Role),
     __metadata("design:type", String)
 ], CreateUserDto.prototype, "role", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateUserDto.prototype, "outletId", void 0);
 //# sourceMappingURL=create-user.dto.js.map

@@ -22,8 +22,9 @@ let ExpensesService = class ExpensesService {
             data: createExpenseDto,
         });
     }
-    findAll() {
+    findAll(outletId) {
         return this.prisma.expense.findMany({
+            where: outletId ? { outletId } : undefined,
             orderBy: { createdAt: 'desc' }
         });
     }

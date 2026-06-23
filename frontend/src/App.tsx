@@ -1,5 +1,6 @@
+import type { ReactElement } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Sidebar from './components/Sidebar';
 import DashboardPage from './pages/DashboardPage';
@@ -17,6 +18,12 @@ import KitchenPage from './pages/KitchenPage';
 import ProfilePage from './pages/ProfilePage';
 import CustomersPage from './pages/CustomersPage';
 import InventoryLogsPage from './pages/InventoryLogsPage';
+import OutletsPage from './pages/OutletsPage';
+import SuppliersPage from './pages/SuppliersPage';
+import PurchaseOrdersPage from './pages/PurchaseOrdersPage';
+import PublicOrderPage from './pages/PublicOrderPage';
+import { getFirstAvailableRoute, isFeatureDisabled, type FeatureKey } from './lib/featureAccess';
+import { useAppPublicSettings } from './hooks/useAppPublicSettings';
 import './index.css';
 
 const queryClient = new QueryClient({
@@ -30,36 +37,63 @@ const queryClient = new QueryClient({
 
 function ProtectedLayout() {
   const { isAuthenticated, user } = useAuth();
+  const location = useLocation();
+  const { disabledFeatures, forcePasswordChange } = useAppPublicSettings();
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
   const isManagerOrOwner = user?.role === 'OWNER' || user?.role === 'MANAGER';
   const isOwner = user?.role === 'OWNER';
+  const fallbackRoute = getFirstAvailableRoute(user?.role, disabledFeatures);
+  const mustChangePassword = Boolean(forcePasswordChange && user?.mustChangePassword);
+
+  const guardFeature = (feature: FeatureKey, element: ReactElement) => {
+    if (isFeatureDisabled(disabledFeatures, feature)) {
+      return <Navigate to={fallbackRoute} replace />;
+    }
+    return element;
+  };
+
+  if (mustChangePassword && location.pathname !== '/profile') {
+    return <Navigate to="/profile" replace />;
+  }
 
   return (
     <div className="app-layout">
       <Sidebar />
       <Routes>
-        <Route path="/" element={isManagerOrOwner ? <DashboardPage /> : (user?.role === 'BARISTA' ? <Navigate to="/kitchen" replace /> : <Navigate to="/pos" replace />)} />
+        <Route
+          path="/"
+          element={
+            isManagerOrOwner
+              ? guardFeature('dashboard', <DashboardPage />)
+              : user?.role === 'BARISTA'
+                ? <Navigate to={fallbackRoute} replace />
+                : <Navigate to={fallbackRoute} replace />
+          }
+        />
         
         {/* Manager & Owner only routes */}
-        <Route path="/ingredients" element={isManagerOrOwner ? <IngredientsPage /> : <Navigate to="/pos" replace />} />
-        <Route path="/inventory-logs" element={isManagerOrOwner ? <InventoryLogsPage /> : <Navigate to="/pos" replace />} />
-        <Route path="/menus" element={isManagerOrOwner ? <MenusPage /> : <Navigate to="/pos" replace />} />
-        <Route path="/categories" element={isManagerOrOwner ? <CategoriesPage /> : <Navigate to="/pos" replace />} />
-        <Route path="/discounts" element={isManagerOrOwner ? <DiscountsPage /> : <Navigate to="/pos" replace />} />
-        <Route path="/expenses" element={isManagerOrOwner ? <ExpensesPage /> : <Navigate to="/pos" replace />} />
-        <Route path="/users" element={isManagerOrOwner ? <UsersPage /> : <Navigate to="/pos" replace />} />
+        <Route path="/ingredients" element={isManagerOrOwner ? guardFeature('ingredients', <IngredientsPage />) : <Navigate to={fallbackRoute} replace />} />
+        <Route path="/inventory-logs" element={isManagerOrOwner ? guardFeature('inventory-logs', <InventoryLogsPage />) : <Navigate to={fallbackRoute} replace />} />
+        <Route path="/menus" element={isManagerOrOwner ? guardFeature('menus', <MenusPage />) : <Navigate to={fallbackRoute} replace />} />
+        <Route path="/categories" element={isManagerOrOwner ? guardFeature('categories', <CategoriesPage />) : <Navigate to={fallbackRoute} replace />} />
+        <Route path="/discounts" element={isManagerOrOwner ? guardFeature('discounts', <DiscountsPage />) : <Navigate to={fallbackRoute} replace />} />
+        <Route path="/expenses" element={isManagerOrOwner ? guardFeature('expenses', <ExpensesPage />) : <Navigate to={fallbackRoute} replace />} />
+        <Route path="/users" element={isManagerOrOwner ? guardFeature('users', <UsersPage />) : <Navigate to={fallbackRoute} replace />} />
         
         {/* Owner only routes */}
-        <Route path="/settings" element={isOwner ? <SettingsPage /> : <Navigate to="/pos" replace />} />
+        <Route path="/settings" element={isOwner ? <SettingsPage /> : <Navigate to={fallbackRoute} replace />} />
         
         {/* Accessible to POS users (CASHIER, OWNER, MANAGER) */}
-        <Route path="/customers" element={user?.role !== 'BARISTA' ? <CustomersPage /> : <Navigate to="/kitchen" replace />} />
-        <Route path="/pos" element={user?.role !== 'BARISTA' ? <POSPage /> : <Navigate to="/kitchen" replace />} />
-        <Route path="/transactions" element={user?.role !== 'BARISTA' ? <TransactionsPage /> : <Navigate to="/kitchen" replace />} />
+        <Route path="/customers" element={user?.role !== 'BARISTA' ? guardFeature('customers', <CustomersPage />) : <Navigate to={fallbackRoute} replace />} />
+        <Route path="/outlets" element={isManagerOrOwner ? guardFeature('outlets', <OutletsPage />) : <Navigate to={fallbackRoute} replace />} />
+        <Route path="/suppliers" element={isManagerOrOwner ? guardFeature('suppliers', <SuppliersPage />) : <Navigate to={fallbackRoute} replace />} />
+        <Route path="/purchase-orders" element={isManagerOrOwner ? guardFeature('purchase-orders', <PurchaseOrdersPage />) : <Navigate to={fallbackRoute} replace />} />
+        <Route path="/pos" element={user?.role !== 'BARISTA' ? guardFeature('pos', <POSPage />) : <Navigate to={fallbackRoute} replace />} />
+        <Route path="/transactions" element={user?.role !== 'BARISTA' ? guardFeature('transactions', <TransactionsPage />) : <Navigate to={fallbackRoute} replace />} />
         
         {/* Accessible to all */}
-        <Route path="/kitchen" element={<KitchenPage />} />
+        <Route path="/kitchen" element={guardFeature('kitchen', <KitchenPage />)} />
         <Route path="/profile" element={<ProfilePage />} />
       </Routes>
     </div>
@@ -73,6 +107,7 @@ export default function App() {
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/public/order/:outletSlug/:tableCode" element={<PublicOrderPage />} />
             <Route path="/*" element={<ProtectedLayout />} />
           </Routes>
         </AuthProvider>

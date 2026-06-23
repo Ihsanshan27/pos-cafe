@@ -4,6 +4,10 @@ import { UpdateMenuDto } from './dto/update-menu.dto';
 export declare class MenusController {
     private readonly menusService;
     constructor(menusService: MenusService);
+    uploadImage(file: any): Promise<{
+        filename: string;
+        imageUrl: string;
+    }>;
     create(createMenuDto: CreateMenuDto): Promise<{
         ingredients: ({
             ingredient: {

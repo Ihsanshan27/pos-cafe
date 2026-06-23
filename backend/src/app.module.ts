@@ -14,9 +14,13 @@ import { ShiftsModule } from './shifts/shifts.module';
 import { SettingsModule } from './settings/settings.module';
 import { CustomersModule } from './customers/customers.module';
 import { InventoryLogsModule } from './inventory-logs/inventory-logs.module';
+import { OutletsModule } from './outlets/outlets.module';
+import { SuppliersModule } from './suppliers/suppliers.module';
+import { PurchaseOrdersModule } from './purchase-orders/purchase-orders.module';
+import { PublicOrderModule } from './public-order/public-order.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, IngredientsModule, MenusModule, TransactionsModule, ExpensesModule, UsersModule, CategoriesModule, DiscountsModule, ShiftsModule, SettingsModule, CustomersModule, InventoryLogsModule],
+  imports: [PrismaModule, AuthModule, IngredientsModule, MenusModule, TransactionsModule, ExpensesModule, UsersModule, CategoriesModule, DiscountsModule, ShiftsModule, SettingsModule, CustomersModule, InventoryLogsModule, OutletsModule, SuppliersModule, PurchaseOrdersModule, PublicOrderModule],
   controllers: [AppController],
   providers: [AppService],
 })

@@ -38,12 +38,31 @@ dotenv.config();
 const core_1 = require("@nestjs/core");
 const app_module_1 = require("./app.module");
 const common_1 = require("@nestjs/common");
+const path_1 = require("path");
+const express = __importStar(require("express"));
 async function bootstrap() {
     const app = await core_1.NestFactory.create(app_module_1.AppModule);
-    app.enableCors();
+    const allowedOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:5173,http://127.0.0.1:5173')
+        .split(',')
+        .map((origin) => origin.trim())
+        .filter(Boolean);
+    app.enableCors({
+        origin: allowedOrigins,
+        methods: ['GET', 'POST', 'PATCH', 'DELETE', 'OPTIONS'],
+        allowedHeaders: ['Content-Type', 'Authorization'],
+    });
+    app.use((req, res, next) => {
+        res.setHeader('X-Content-Type-Options', 'nosniff');
+        res.setHeader('X-Frame-Options', 'DENY');
+        res.setHeader('Referrer-Policy', 'no-referrer');
+        res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+        next();
+    });
+    app.use('/img', express.static((0, path_1.join)(process.cwd(), 'img')));
     app.useGlobalPipes(new common_1.ValidationPipe({
         whitelist: true,
         transform: true,
+        forbidNonWhitelisted: true,
     }));
     await app.listen(process.env.PORT ?? 3000);
 }

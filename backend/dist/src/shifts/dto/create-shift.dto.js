@@ -13,10 +13,16 @@ exports.CreateShiftDto = void 0;
 const class_validator_1 = require("class-validator");
 class CreateShiftDto {
     startingCash;
+    outletId;
 }
 exports.CreateShiftDto = CreateShiftDto;
 __decorate([
     (0, class_validator_1.IsNumber)(),
     __metadata("design:type", Number)
 ], CreateShiftDto.prototype, "startingCash", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateShiftDto.prototype, "outletId", void 0);
 //# sourceMappingURL=create-shift.dto.js.map

@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { customerApi } from '../lib/api';
 import { Plus, Users, Search, Trash2 } from 'lucide-react';
+import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
 
 export default function CustomersPage() {
   const qc = useQueryClient();
+  const { loyaltyEnabled, pointsPerSpend, silverMinPoints, goldMinPoints } = useAppPublicSettings();
   const [search, setSearch] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState({ name: '', phone: '', email: '' });
@@ -32,7 +34,13 @@ export default function CustomersPage() {
       <div className="page-header">
         <div>
           <h2>Customers (CRM)</h2>
-          <p>Kelola data pelanggan dan point reward</p>
+          <p>
+            Kelola data pelanggan dan point reward.
+            {' '}
+            {loyaltyEnabled
+              ? `1 poin per Rp${pointsPerSpend.toLocaleString('id-ID')} • Silver ${silverMinPoints} • Gold ${goldMinPoints}`
+              : 'Loyalty sedang nonaktif.'}
+          </p>
         </div>
         <button className="btn btn-primary" onClick={() => setIsOpen(true)}>
           <Plus size={18} /> Tambah Customer

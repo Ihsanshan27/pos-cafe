@@ -3,11 +3,11 @@ import { useMutation } from '@tanstack/react-query';
 import { authApi } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
 import { User as UserIcon, Lock, CheckCircle, XCircle } from 'lucide-react';
+import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
 
 export default function ProfilePage() {
-  const { user, login } = useAuth(); // We can re-use login or just update localStorage manually? Wait, AuthContext doesn't have `updateUser`.
-  // Wait, if we change the name, we might need to refresh the page or update localStorage user.
-  
+  const { user, updateUser } = useAuth();
+  const { forcePasswordChange } = useAppPublicSettings();
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [password, setPassword] = useState('');
@@ -21,13 +21,9 @@ export default function ProfilePage() {
   const updateProfileMut = useMutation({
     mutationFn: (data: any) => authApi.updateProfile(data),
     onSuccess: (updatedUser) => {
-      // Update local storage user data
-      const token = localStorage.getItem('token');
-      if (token) {
-        localStorage.setItem('user', JSON.stringify(updatedUser));
-        // Force reload to update context across the app
-        window.location.reload();
-      }
+      updateUser(updatedUser);
+      setPassword('');
+      showToast(password ? 'Password berhasil diubah dan status keamanan akun sudah diperbarui.' : 'Profil berhasil diperbarui.');
     },
     onError: (err: any) => {
       showToast(err?.response?.data?.message || 'Failed to update profile', 'error');
@@ -55,6 +51,11 @@ export default function ProfilePage() {
       </div>
 
       <div style={{ maxWidth: '600px', margin: '0 auto', background: 'var(--bg-card)', padding: '2rem', borderRadius: '1rem', border: '1px solid var(--border)' }}>
+        {forcePasswordChange && user?.mustChangePassword && (
+          <div style={{ marginBottom: '1.25rem', padding: '0.9rem 1rem', borderRadius: '0.75rem', background: 'rgba(245, 158, 11, 0.12)', border: '1px solid rgba(245, 158, 11, 0.3)', color: '#b45309' }}>
+            Demi keamanan, owner mengaktifkan perubahan password wajib. Silakan isi password baru lalu simpan sebelum lanjut memakai modul lain.
+          </div>
+        )}
         
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '2rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
           <div style={{ width: 64, height: 64, background: 'rgba(99, 102, 241, 0.1)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--accent)' }}>
@@ -99,6 +100,7 @@ export default function ProfilePage() {
               placeholder="Biarkan kosong jika tidak ingin mengubah password"
               value={password} 
               onChange={e => setPassword(e.target.value)} 
+              required={Boolean(forcePasswordChange && user?.mustChangePassword)}
             />
           </div>
 

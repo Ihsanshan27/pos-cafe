@@ -17,7 +17,8 @@ export declare class InventoryLogsController {
         type: import("@prisma/client").$Enums.LogType;
         createdBy: string | null;
     }>;
-    findAll(): import("@prisma/client").Prisma.PrismaPromise<({
+    findAll(): Promise<{
+        createdByName: string | null;
         ingredient: {
             id: string;
             name: string;
@@ -27,7 +28,6 @@ export declare class InventoryLogsController {
             createdAt: Date;
             updatedAt: Date;
         };
-    } & {
         id: string;
         createdAt: Date;
         quantity: number;
@@ -35,5 +35,5 @@ export declare class InventoryLogsController {
         notes: string | null;
         type: import("@prisma/client").$Enums.LogType;
         createdBy: string | null;
-    })[]>;
+    }[]>;
 }

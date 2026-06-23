@@ -21,10 +21,25 @@ const client_1 = require("@prisma/client");
 const menus_service_1 = require("./menus.service");
 const create_menu_dto_1 = require("./dto/create-menu.dto");
 const update_menu_dto_1 = require("./dto/update-menu.dto");
+const platform_express_1 = require("@nestjs/platform-express");
+const multer_1 = require("multer");
+const image_upload_util_1 = require("../common/image-upload.util");
 let MenusController = class MenusController {
     menusService;
     constructor(menusService) {
         this.menusService = menusService;
+    }
+    async uploadImage(file) {
+        if (!file) {
+            throw new common_1.BadRequestException('Image file is required');
+        }
+        return (0, image_upload_util_1.saveOptimizedImage)({
+            buffer: file.buffer,
+            prefix: 'menu',
+            maxWidth: 1400,
+            maxHeight: 1400,
+            quality: 80,
+        });
     }
     create(createMenuDto) {
         return this.menusService.create(createMenuDto);
@@ -43,6 +58,26 @@ let MenusController = class MenusController {
     }
 };
 exports.MenusController = MenusController;
+__decorate([
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER),
+    (0, common_1.Post)('upload'),
+    (0, common_1.UseInterceptors)((0, platform_express_1.FileInterceptor)('image', {
+        storage: (0, multer_1.memoryStorage)(),
+        fileFilter: (_req, file, cb) => {
+            if (!file.mimetype.startsWith('image/')) {
+                return cb(new common_1.BadRequestException('Only image files are allowed'), false);
+            }
+            cb(null, true);
+        },
+        limits: {
+            fileSize: 5 * 1024 * 1024,
+        },
+    })),
+    __param(0, (0, common_1.UploadedFile)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], MenusController.prototype, "uploadImage", null);
 __decorate([
     (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER),
     (0, common_1.Post)(),

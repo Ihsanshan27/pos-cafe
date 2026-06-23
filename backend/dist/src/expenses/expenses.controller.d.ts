@@ -9,13 +9,15 @@ export declare class ExpensesController {
         createdAt: Date;
         updatedAt: Date;
         description: string;
+        outletId: string | null;
         amount: import("@prisma/client-runtime-utils").Decimal;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
-    findAll(): import("@prisma/client").Prisma.PrismaPromise<{
+    findAll(outletId?: string): import("@prisma/client").Prisma.PrismaPromise<{
         id: string;
         createdAt: Date;
         updatedAt: Date;
         description: string;
+        outletId: string | null;
         amount: import("@prisma/client-runtime-utils").Decimal;
     }[]>;
     findOne(id: string): import("@prisma/client").Prisma.Prisma__ExpenseClient<{
@@ -23,6 +25,7 @@ export declare class ExpensesController {
         createdAt: Date;
         updatedAt: Date;
         description: string;
+        outletId: string | null;
         amount: import("@prisma/client-runtime-utils").Decimal;
     } | null, null, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     update(id: string, updateExpenseDto: UpdateExpenseDto): import("@prisma/client").Prisma.Prisma__ExpenseClient<{
@@ -30,6 +33,7 @@ export declare class ExpensesController {
         createdAt: Date;
         updatedAt: Date;
         description: string;
+        outletId: string | null;
         amount: import("@prisma/client-runtime-utils").Decimal;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     remove(id: string): import("@prisma/client").Prisma.Prisma__ExpenseClient<{
@@ -37,6 +41,7 @@ export declare class ExpensesController {
         createdAt: Date;
         updatedAt: Date;
         description: string;
+        outletId: string | null;
         amount: import("@prisma/client-runtime-utils").Decimal;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
 }

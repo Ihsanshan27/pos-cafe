@@ -46,12 +46,15 @@ exports.UsersService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
 const bcrypt = __importStar(require("bcrypt"));
+const client_1 = require("@prisma/client");
+const user_response_util_1 = require("../common/user-response.util");
 let UsersService = class UsersService {
     prisma;
     constructor(prisma) {
         this.prisma = prisma;
     }
-    async create(createUserDto) {
+    async create(actor, createUserDto) {
+        this.assertRoleAssignment(actor, createUserDto.role);
         const existingUser = await this.prisma.user.findUnique({ where: { email: createUserDto.email } });
         if (existingUser)
             throw new common_1.BadRequestException('Email already in use');
@@ -61,22 +64,31 @@ let UsersService = class UsersService {
                 ...createUserDto,
                 password: hashedPassword,
             },
+            include: {
+                outlet: true,
+            },
         });
-        const { password, ...result } = user;
-        return result;
+        return (0, user_response_util_1.sanitizeUser)(user);
     }
     async findAll() {
-        const users = await this.prisma.user.findMany({ orderBy: { createdAt: 'desc' } });
-        return users.map(({ password, ...user }) => user);
+        const users = await this.prisma.user.findMany({
+            include: { outlet: true },
+            orderBy: { createdAt: 'desc' },
+        });
+        return users.map((user) => (0, user_response_util_1.sanitizeUser)(user));
     }
     async findOne(id) {
-        const user = await this.prisma.user.findUnique({ where: { id } });
+        const user = await this.prisma.user.findUnique({ where: { id }, include: { outlet: true } });
         if (!user)
             throw new common_1.BadRequestException('User not found');
-        const { password, ...result } = user;
-        return result;
+        return (0, user_response_util_1.sanitizeUser)(user);
     }
-    async update(id, updateUserDto) {
+    async update(actor, id, updateUserDto) {
+        const existingUser = await this.prisma.user.findUnique({ where: { id } });
+        if (!existingUser)
+            throw new common_1.BadRequestException('User not found');
+        this.assertUserMutationAccess(actor, existingUser.role);
+        this.assertRoleAssignment(actor, updateUserDto.role, existingUser.role);
         let dataToUpdate = { ...updateUserDto };
         if (updateUserDto.password) {
             dataToUpdate.password = await bcrypt.hash(updateUserDto.password, 10);
@@ -84,14 +96,39 @@ let UsersService = class UsersService {
         const user = await this.prisma.user.update({
             where: { id },
             data: dataToUpdate,
+            include: { outlet: true },
         });
-        const { password, ...result } = user;
-        return result;
+        return (0, user_response_util_1.sanitizeUser)(user);
     }
-    async remove(id) {
-        const user = await this.prisma.user.delete({ where: { id } });
-        const { password, ...result } = user;
-        return result;
+    async remove(actor, id) {
+        const existingUser = await this.prisma.user.findUnique({ where: { id } });
+        if (!existingUser)
+            throw new common_1.BadRequestException('User not found');
+        this.assertUserMutationAccess(actor, existingUser.role);
+        const user = await this.prisma.user.delete({ where: { id }, include: { outlet: true } });
+        return (0, user_response_util_1.sanitizeUser)(user);
+    }
+    assertRoleAssignment(actor, nextRole, currentRole) {
+        if (actor.role === client_1.Role.OWNER) {
+            return;
+        }
+        if (!nextRole) {
+            return;
+        }
+        if (nextRole === client_1.Role.OWNER || nextRole === client_1.Role.MANAGER) {
+            throw new common_1.BadRequestException('Manager cannot assign owner or manager role');
+        }
+        if (currentRole === client_1.Role.OWNER || currentRole === client_1.Role.MANAGER) {
+            throw new common_1.BadRequestException('Manager cannot modify privileged users');
+        }
+    }
+    assertUserMutationAccess(actor, targetRole) {
+        if (actor.role === client_1.Role.OWNER) {
+            return;
+        }
+        if (targetRole === client_1.Role.OWNER || targetRole === client_1.Role.MANAGER) {
+            throw new common_1.BadRequestException('Manager cannot modify privileged users');
+        }
     }
 };
 exports.UsersService = UsersService;

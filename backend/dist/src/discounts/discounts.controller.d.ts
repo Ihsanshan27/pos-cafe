@@ -6,37 +6,37 @@ export declare class DiscountsController {
     constructor(discountsService: DiscountsService);
     create(createDiscountDto: CreateDiscountDto): Promise<{
         id: string;
-        type: string;
         value: import("@prisma/client-runtime-utils").Decimal;
         code: string;
+        type: string;
         isActive: boolean;
     }>;
     findAll(): import("@prisma/client").Prisma.PrismaPromise<{
         id: string;
-        type: string;
         value: import("@prisma/client-runtime-utils").Decimal;
         code: string;
+        type: string;
         isActive: boolean;
     }[]>;
     findOne(id: string): import("@prisma/client").Prisma.Prisma__DiscountClient<{
         id: string;
-        type: string;
         value: import("@prisma/client-runtime-utils").Decimal;
         code: string;
+        type: string;
         isActive: boolean;
     } | null, null, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     update(id: string, updateDiscountDto: UpdateDiscountDto): import("@prisma/client").Prisma.Prisma__DiscountClient<{
         id: string;
-        type: string;
         value: import("@prisma/client-runtime-utils").Decimal;
         code: string;
+        type: string;
         isActive: boolean;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     remove(id: string): import("@prisma/client").Prisma.Prisma__DiscountClient<{
         id: string;
-        type: string;
         value: import("@prisma/client-runtime-utils").Decimal;
         code: string;
+        type: string;
         isActive: boolean;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
 }

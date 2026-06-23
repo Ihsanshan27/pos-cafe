@@ -6,17 +6,26 @@ import { AuthController } from './auth.controller';
 import { JwtStrategy } from './jwt.strategy';
 import { JwtAuthGuard } from './jwt-auth.guard';
 import { SettingsModule } from '../settings/settings.module';
+import { LoginRateLimitGuard } from '../common/simple-rate-limit.guard';
+
+function getJwtSecret() {
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    throw new Error('JWT_SECRET environment variable is required');
+  }
+  return jwtSecret;
+}
 
 @Module({
   imports: [
     PassportModule,
     SettingsModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET ?? 'pos-fnb-secret-key',
+      secret: getJwtSecret(),
       signOptions: { expiresIn: '7d' },
     }),
   ],
-  providers: [AuthService, JwtStrategy, JwtAuthGuard],
+  providers: [AuthService, JwtStrategy, JwtAuthGuard, LoginRateLimitGuard],
   controllers: [AuthController],
   exports: [JwtAuthGuard, JwtModule],
 })

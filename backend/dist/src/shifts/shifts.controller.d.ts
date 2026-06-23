@@ -6,44 +6,89 @@ export declare class ShiftsController {
     constructor(shiftsService: ShiftsService);
     create(req: any, createShiftDto: CreateShiftDto): Promise<{
         id: string;
+        outletId: string | null;
         status: string;
         userId: string;
-        startingCash: import("@prisma/client-runtime-utils").Decimal;
-        actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
         startTime: Date;
         endTime: Date | null;
+        startingCash: import("@prisma/client-runtime-utils").Decimal;
+        actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
     }>;
-    findAll(): import("@prisma/client").Prisma.PrismaPromise<({
-        user: {
+    findAll(req: any, outletId?: string): Promise<{
+        user: Omit<{
+            outlet: {
+                id: string;
+                name: string;
+                createdAt: Date;
+                updatedAt: Date;
+                isActive: boolean;
+                phone: string | null;
+                slug: string;
+                address: string | null;
+            } | null;
+        } & {
             id: string;
             name: string;
             createdAt: Date;
             email: string;
             password: string;
+            outletId: string | null;
             role: import("@prisma/client").$Enums.Role;
-        };
-    } & {
+        }, "password">;
+        outlet: {
+            id: string;
+            name: string;
+            createdAt: Date;
+            updatedAt: Date;
+            isActive: boolean;
+            phone: string | null;
+            slug: string;
+            address: string | null;
+        } | null;
         id: string;
+        outletId: string | null;
         status: string;
         userId: string;
-        startingCash: import("@prisma/client-runtime-utils").Decimal;
-        actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
         startTime: Date;
         endTime: Date | null;
-    })[]>;
-    findActive(req: any): import("@prisma/client").Prisma.Prisma__ShiftClient<{
+        startingCash: import("@prisma/client-runtime-utils").Decimal;
+        actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
+    }[]>;
+    findActive(req: any, outletId?: string): import("@prisma/client").Prisma.Prisma__ShiftClient<{
         id: string;
+        outletId: string | null;
         status: string;
         userId: string;
-        startingCash: import("@prisma/client-runtime-utils").Decimal;
-        actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
         startTime: Date;
         endTime: Date | null;
+        startingCash: import("@prisma/client-runtime-utils").Decimal;
+        actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
     } | null, null, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
-    findOne(id: string): import("@prisma/client").Prisma.Prisma__ShiftClient<({
+    findOne(req: any, id: string): Promise<{
+        user: Omit<{
+            outlet: {
+                id: string;
+                name: string;
+                createdAt: Date;
+                updatedAt: Date;
+                isActive: boolean;
+                phone: string | null;
+                slug: string;
+                address: string | null;
+            } | null;
+        } & {
+            id: string;
+            name: string;
+            createdAt: Date;
+            email: string;
+            password: string;
+            outletId: string | null;
+            role: import("@prisma/client").$Enums.Role;
+        }, "password">;
         transactions: {
             id: string;
             createdAt: Date;
+            outletId: string | null;
             status: import("@prisma/client").$Enums.TransactionStatus;
             paymentMethod: import("@prisma/client").$Enums.PaymentMethod;
             orderType: import("@prisma/client").$Enums.OrderType;
@@ -53,27 +98,39 @@ export declare class ShiftsController {
             shiftId: string | null;
             customerName: string | null;
             customerId: string | null;
+            source: import("@prisma/client").$Enums.TransactionSource;
+            userId: string | null;
             orderNumber: string | null;
             totalAmount: import("@prisma/client-runtime-utils").Decimal;
             kitchenStatus: import("@prisma/client").$Enums.KitchenStatus;
-            userId: string | null;
         }[];
-    } & {
+        outlet: {
+            id: string;
+            name: string;
+            createdAt: Date;
+            updatedAt: Date;
+            isActive: boolean;
+            phone: string | null;
+            slug: string;
+            address: string | null;
+        } | null;
         id: string;
+        outletId: string | null;
         status: string;
         userId: string;
-        startingCash: import("@prisma/client-runtime-utils").Decimal;
-        actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
         startTime: Date;
         endTime: Date | null;
-    }) | null, null, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
-    update(id: string, updateShiftDto: UpdateShiftDto): Promise<{
+        startingCash: import("@prisma/client-runtime-utils").Decimal;
+        actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
+    } | null>;
+    update(req: any, id: string, updateShiftDto: UpdateShiftDto): Promise<{
         id: string;
+        outletId: string | null;
         status: string;
         userId: string;
-        startingCash: import("@prisma/client-runtime-utils").Decimal;
-        actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
         startTime: Date;
         endTime: Date | null;
+        startingCash: import("@prisma/client-runtime-utils").Decimal;
+        actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
     }>;
 }

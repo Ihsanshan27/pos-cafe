@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { transactionApi } from '../lib/api';
 import { CheckCircle, Clock, Play, Check } from 'lucide-react';
+import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
+import { useActiveOutlet } from '../hooks/useActiveOutlet';
 
 function playDing() {
   try {
@@ -29,36 +31,43 @@ function playDing() {
 export default function KitchenPage() {
   const qc = useQueryClient();
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
+  const { kdsSoundEnabled, kdsRefreshInterval, kdsDoneHideMinutes, kdsHighlightNotes } = useAppPublicSettings();
+  const { activeOutletId } = useActiveOutlet();
 
   const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ['transactions'],
-    queryFn: transactionApi.getAll,
-    refetchInterval: 5000,
+    queryKey: ['transactions', activeOutletId],
+    queryFn: () => transactionApi.getAll(activeOutletId || undefined),
+    refetchInterval: Math.max(3, kdsRefreshInterval) * 1000,
   });
 
   // Filter completed payments, split by kitchen status
   const pendingOrders = transactions
-    .filter(tx => tx.status === 'COMPLETED' && tx.kitchenStatus === 'PENDING')
+    .filter(tx => (tx.status === 'COMPLETED' || tx.source === 'PUBLIC_QR') && tx.kitchenStatus === 'PENDING')
     .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
 
   const inProgressOrders = transactions
-    .filter(tx => tx.status === 'COMPLETED' && tx.kitchenStatus === 'IN_PROGRESS')
+    .filter(tx => (tx.status === 'COMPLETED' || tx.source === 'PUBLIC_QR') && tx.kitchenStatus === 'IN_PROGRESS')
     .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
 
   // Show only last 20 done orders
   const doneOrders = transactions
-    .filter(tx => tx.status === 'COMPLETED' && tx.kitchenStatus === 'DONE')
+    .filter(tx => (tx.status === 'COMPLETED' || tx.source === 'PUBLIC_QR') && tx.kitchenStatus === 'DONE')
+    .filter((tx) => {
+      if (kdsDoneHideMinutes <= 0) return true;
+      const completedAt = new Date(tx.createdAt).getTime();
+      return Date.now() - completedAt <= kdsDoneHideMinutes * 60 * 1000;
+    })
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
     .slice(0, 20);
 
   const prevCount = useRef(0);
 
   useEffect(() => {
-    if (pendingOrders.length > prevCount.current && pendingOrders.length > 0) {
+    if (kdsSoundEnabled && pendingOrders.length > prevCount.current && pendingOrders.length > 0) {
       playDing();
     }
     prevCount.current = pendingOrders.length;
-  }, [pendingOrders.length]);
+  }, [kdsSoundEnabled, pendingOrders.length]);
 
   const updateStatusMut = useMutation({
     mutationFn: ({ id, status }: { id: string; status: 'PENDING' | 'IN_PROGRESS' | 'DONE' }) => transactionApi.updateKitchenStatus(id, status),
@@ -98,7 +107,17 @@ export default function KitchenPage() {
               <span>{item.menu?.name}</span>
             </div>
             {item.notes && (
-              <div style={{ marginTop: '0.25rem', fontSize: '0.9rem', color: 'var(--danger)', fontWeight: 600 }}>
+              <div
+                style={{
+                  marginTop: '0.25rem',
+                  fontSize: '0.9rem',
+                  color: kdsHighlightNotes ? 'var(--danger)' : 'var(--text-secondary)',
+                  fontWeight: kdsHighlightNotes ? 700 : 500,
+                  background: kdsHighlightNotes ? 'rgba(239, 68, 68, 0.1)' : 'transparent',
+                  padding: kdsHighlightNotes ? '0.35rem 0.5rem' : 0,
+                  borderRadius: kdsHighlightNotes ? '0.5rem' : 0,
+                }}
+              >
                 Catatan: {item.notes}
               </div>
             )}
@@ -136,7 +155,12 @@ export default function KitchenPage() {
   return (
     <div style={{ padding: '1.5rem', height: '100vh', display: 'flex', flexDirection: 'column', background: 'var(--bg-primary)', width: '100%', overflow: 'hidden' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexShrink: 0 }}>
-        <h1 style={{ margin: 0, fontSize: '2rem' }}>Kitchen Display System (KDS)</h1>
+        <div>
+          <h1 style={{ margin: 0, fontSize: '2rem' }}>Kitchen Display System (KDS)</h1>
+          <div style={{ marginTop: '0.35rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+            Refresh {Math.max(3, kdsRefreshInterval)} detik • Sound {kdsSoundEnabled ? 'ON' : 'OFF'} • Done hide {kdsDoneHideMinutes} menit
+          </div>
+        </div>
       </div>
 
       {toast && <div className={`toast toast-${toast.type}`}>{toast.msg}</div>}

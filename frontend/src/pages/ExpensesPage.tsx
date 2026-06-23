@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { expenseApi } from '../lib/api';
 import { Wallet, Plus, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useActiveOutlet } from '../hooks/useActiveOutlet';
 
 function formatCurrency(val: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
@@ -11,6 +12,7 @@ function formatCurrency(val: number) {
 export default function ExpensesPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
+  const { activeOutletId, activeOutlet } = useActiveOutlet();
   const isManagerOrOwner = user?.role === 'OWNER' || user?.role === 'MANAGER';
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -18,12 +20,12 @@ export default function ExpensesPage() {
   const [amount, setAmount] = useState('');
 
   const { data: expenses = [], isLoading } = useQuery({
-    queryKey: ['expenses'],
-    queryFn: expenseApi.getAll,
+    queryKey: ['expenses', activeOutletId],
+    queryFn: () => expenseApi.getAll(activeOutletId || undefined),
   });
 
   const createMut = useMutation({
-    mutationFn: () => expenseApi.create({ description, amount: Number(amount) }),
+    mutationFn: () => expenseApi.create({ description, amount: Number(amount), outletId: activeOutletId || undefined }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['expenses'] });
       setIsModalOpen(false);
@@ -56,7 +58,7 @@ export default function ExpensesPage() {
       <div className="page-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2>Operational Expenses</h2>
-          <p>Track your daily shop expenses</p>
+          <p>Track your daily shop expenses{activeOutlet ? ` • ${activeOutlet.name}` : ''}</p>
         </div>
         <button className="btn btn-primary" onClick={() => setIsModalOpen(true)}>
           <Plus size={18} /> Add Expense

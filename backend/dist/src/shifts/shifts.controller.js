@@ -18,6 +18,9 @@ const shifts_service_1 = require("./shifts.service");
 const create_shift_dto_1 = require("./dto/create-shift.dto");
 const update_shift_dto_1 = require("./dto/update-shift.dto");
 const jwt_auth_guard_1 = require("../auth/jwt-auth.guard");
+const roles_guard_1 = require("../auth/roles.guard");
+const roles_decorator_1 = require("../auth/roles.decorator");
+const client_1 = require("@prisma/client");
 let ShiftsController = class ShiftsController {
     shiftsService;
     constructor(shiftsService) {
@@ -26,21 +29,23 @@ let ShiftsController = class ShiftsController {
     create(req, createShiftDto) {
         return this.shiftsService.create(req.user.id, createShiftDto);
     }
-    findAll() {
-        return this.shiftsService.findAll();
+    findAll(req, outletId) {
+        return this.shiftsService.findAll(req.user, outletId);
     }
-    findActive(req) {
-        return this.shiftsService.findActive(req.user.id);
+    findActive(req, outletId) {
+        return this.shiftsService.findActive(req.user, outletId);
     }
-    findOne(id) {
-        return this.shiftsService.findOne(id);
+    findOne(req, id) {
+        return this.shiftsService.findOne(req.user, id);
     }
-    update(id, updateShiftDto) {
-        return this.shiftsService.update(id, updateShiftDto);
+    update(req, id, updateShiftDto) {
+        return this.shiftsService.update(req.user, id, updateShiftDto);
     }
 };
 exports.ShiftsController = ShiftsController;
 __decorate([
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER, client_1.Role.CASHIER, client_1.Role.BARISTA),
     (0, common_1.Post)(),
     __param(0, (0, common_1.Request)()),
     __param(1, (0, common_1.Body)()),
@@ -49,31 +54,44 @@ __decorate([
     __metadata("design:returntype", void 0)
 ], ShiftsController.prototype, "create", null);
 __decorate([
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER, client_1.Role.CASHIER, client_1.Role.BARISTA),
     (0, common_1.Get)(),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Query)('outletId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], ShiftsController.prototype, "findAll", null);
 __decorate([
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER, client_1.Role.CASHIER, client_1.Role.BARISTA),
     (0, common_1.Get)('active'),
     __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Query)('outletId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], ShiftsController.prototype, "findActive", null);
 __decorate([
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER, client_1.Role.CASHIER, client_1.Role.BARISTA),
     (0, common_1.Get)(':id'),
-    __param(0, (0, common_1.Param)('id')),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], ShiftsController.prototype, "findOne", null);
 __decorate([
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER, client_1.Role.CASHIER, client_1.Role.BARISTA),
     (0, common_1.Patch)(':id'),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)()),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_shift_dto_1.UpdateShiftDto]),
+    __metadata("design:paramtypes", [Object, String, update_shift_dto_1.UpdateShiftDto]),
     __metadata("design:returntype", void 0)
 ], ShiftsController.prototype, "update", null);
 exports.ShiftsController = ShiftsController = __decorate([

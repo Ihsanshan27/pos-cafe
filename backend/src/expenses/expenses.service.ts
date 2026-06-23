@@ -13,8 +13,9 @@ export class ExpensesService {
     });
   }
 
-  findAll() {
+  findAll(outletId?: string) {
     return this.prisma.expense.findMany({
+      where: outletId ? { outletId } : undefined,
       orderBy: { createdAt: 'desc' }
     });
   }

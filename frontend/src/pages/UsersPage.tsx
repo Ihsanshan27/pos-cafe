@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { userApi, settingsApi } from '../lib/api';
+import { userApi, settingsApi, outletApi } from '../lib/api';
 import type { AuthUser } from '../lib/api';
 import { Users, Plus, Trash2, Edit } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,10 +17,16 @@ export default function UsersPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'OWNER' | 'MANAGER' | 'CASHIER' | 'BARISTA'>('CASHIER');
+  const [outletId, setOutletId] = useState('');
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: userApi.getAll,
+  });
+
+  const { data: outlets = [] } = useQuery({
+    queryKey: ['outlets'],
+    queryFn: outletApi.getAll,
   });
 
   const { data: allowRegistration = true } = useQuery({
@@ -41,11 +47,12 @@ export default function UsersPage() {
     setEmail('');
     setPassword('');
     setRole('CASHIER');
+    setOutletId('');
     setEditingUser(null);
   };
 
   const createMut = useMutation({
-    mutationFn: () => userApi.create({ name, email, password, role }),
+    mutationFn: () => userApi.create({ name, email, password, role, outletId: outletId || undefined }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       setIsModalOpen(false);
@@ -55,7 +62,7 @@ export default function UsersPage() {
   });
 
   const updateMut = useMutation({
-    mutationFn: () => userApi.update(editingUser!.id, { name, email, role, ...(password ? { password } : {}) }),
+    mutationFn: () => userApi.update(editingUser!.id, { name, email, role, outletId: outletId || undefined, ...(password ? { password } : {}) }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
       setIsModalOpen(false);
@@ -86,6 +93,7 @@ export default function UsersPage() {
     setName(u.name);
     setEmail(u.email);
     setRole(u.role);
+    setOutletId(u.outletId || '');
     setPassword('');
     setIsModalOpen(true);
   };
@@ -130,6 +138,7 @@ export default function UsersPage() {
                   <th>Name</th>
                   <th>Email</th>
                   <th>Role</th>
+                  <th>Outlet</th>
                   <th style={{ textAlign: 'center', width: '120px' }}>Actions</th>
                 </tr>
               </thead>
@@ -143,6 +152,7 @@ export default function UsersPage() {
                         {u.role}
                       </span>
                     </td>
+                    <td>{u.outlet?.name || '-'}</td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
                         <button 
@@ -212,6 +222,15 @@ export default function UsersPage() {
                   <option value="MANAGER">MANAGER</option>
                   <option value="CASHIER">CASHIER</option>
                   <option value="BARISTA">BARISTA</option>
+                </select>
+              </div>
+              <div>
+                <label className="form-label">Outlet Assignment</label>
+                <select className="form-input" value={outletId} onChange={(e) => setOutletId(e.target.value)}>
+                  <option value="">Tidak dikunci ke outlet tertentu</option>
+                  {outlets.map((outlet) => (
+                    <option key={outlet.id} value={outlet.id}>{outlet.name}</option>
+                  ))}
                 </select>
               </div>
             </div>

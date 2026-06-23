@@ -1,16 +1,60 @@
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateTransactionDto } from './dto/create-transaction.dto';
+import { Role } from '@prisma/client';
+import { SettingsService } from '../settings/settings.service';
+import { type RoundingMode } from './pricing.util';
+type AuthenticatedUser = {
+    id: string;
+    role: Role;
+    outletId?: string | null;
+};
 export declare class TransactionsService {
     private prisma;
-    constructor(prisma: PrismaService);
-    create(userId: string, createTransactionDto: CreateTransactionDto): Promise<{
-        user: {
+    private settingsService;
+    constructor(prisma: PrismaService, settingsService: SettingsService);
+    create(user: AuthenticatedUser | null, createTransactionDto: CreateTransactionDto): Promise<{
+        user: Omit<{
+            outlet: {
+                id: string;
+                name: string;
+                createdAt: Date;
+                updatedAt: Date;
+                isActive: boolean;
+                phone: string | null;
+                slug: string;
+                address: string | null;
+            } | null;
+        } & {
             id: string;
             name: string;
             createdAt: Date;
             email: string;
             password: string;
+            outletId: string | null;
             role: import("@prisma/client").$Enums.Role;
+        }, "password"> | null;
+        pricingMetadata: {
+            subtotalBeforeDiscount: number;
+            discountAmount: number;
+            taxableAmount: number;
+            taxAmount: number;
+            totalAmount: number;
+            taxEnabled: boolean;
+            taxRate: number;
+            taxInclusive: boolean;
+            roundingMode: RoundingMode;
+            roundingStep: number;
+            roundingAdjustment: number;
+        };
+        outlet: {
+            id: string;
+            name: string;
+            createdAt: Date;
+            updatedAt: Date;
+            isActive: boolean;
+            phone: string | null;
+            slug: string;
+            address: string | null;
         } | null;
         customer: {
             id: string;
@@ -41,9 +85,9 @@ export declare class TransactionsService {
             subtotal: import("@prisma/client-runtime-utils").Decimal;
             transactionId: string;
         })[];
-    } & {
         id: string;
         createdAt: Date;
+        outletId: string | null;
         status: import("@prisma/client").$Enums.TransactionStatus;
         paymentMethod: import("@prisma/client").$Enums.PaymentMethod;
         orderType: import("@prisma/client").$Enums.OrderType;
@@ -53,28 +97,52 @@ export declare class TransactionsService {
         shiftId: string | null;
         customerName: string | null;
         customerId: string | null;
+        source: import("@prisma/client").$Enums.TransactionSource;
+        userId: string | null;
         orderNumber: string | null;
         totalAmount: import("@prisma/client-runtime-utils").Decimal;
         kitchenStatus: import("@prisma/client").$Enums.KitchenStatus;
-        userId: string | null;
     }>;
-    findAll(): import("@prisma/client").Prisma.PrismaPromise<({
-        user: {
+    findAll(user: AuthenticatedUser, outletId?: string): Promise<{
+        user: Omit<{
+            outlet: {
+                id: string;
+                name: string;
+                createdAt: Date;
+                updatedAt: Date;
+                isActive: boolean;
+                phone: string | null;
+                slug: string;
+                address: string | null;
+            } | null;
+        } & {
             id: string;
             name: string;
             createdAt: Date;
             email: string;
             password: string;
+            outletId: string | null;
             role: import("@prisma/client").$Enums.Role;
+        }, "password"> | null;
+        outlet: {
+            id: string;
+            name: string;
+            createdAt: Date;
+            updatedAt: Date;
+            isActive: boolean;
+            phone: string | null;
+            slug: string;
+            address: string | null;
         } | null;
         shift: {
             id: string;
+            outletId: string | null;
             status: string;
             userId: string;
-            startingCash: import("@prisma/client-runtime-utils").Decimal;
-            actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
             startTime: Date;
             endTime: Date | null;
+            startingCash: import("@prisma/client-runtime-utils").Decimal;
+            actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
         } | null;
         customer: {
             id: string;
@@ -105,9 +173,9 @@ export declare class TransactionsService {
             subtotal: import("@prisma/client-runtime-utils").Decimal;
             transactionId: string;
         })[];
-    } & {
         id: string;
         createdAt: Date;
+        outletId: string | null;
         status: import("@prisma/client").$Enums.TransactionStatus;
         paymentMethod: import("@prisma/client").$Enums.PaymentMethod;
         orderType: import("@prisma/client").$Enums.OrderType;
@@ -117,28 +185,53 @@ export declare class TransactionsService {
         shiftId: string | null;
         customerName: string | null;
         customerId: string | null;
+        source: import("@prisma/client").$Enums.TransactionSource;
+        userId: string | null;
         orderNumber: string | null;
         totalAmount: import("@prisma/client-runtime-utils").Decimal;
         kitchenStatus: import("@prisma/client").$Enums.KitchenStatus;
-        userId: string | null;
-    })[]>;
-    findOne(id: string): import("@prisma/client").Prisma.Prisma__TransactionClient<({
-        user: {
+        pricingMetadata: any;
+    }[]>;
+    findOne(user: AuthenticatedUser, id: string): Promise<{
+        user: Omit<{
+            outlet: {
+                id: string;
+                name: string;
+                createdAt: Date;
+                updatedAt: Date;
+                isActive: boolean;
+                phone: string | null;
+                slug: string;
+                address: string | null;
+            } | null;
+        } & {
             id: string;
             name: string;
             createdAt: Date;
             email: string;
             password: string;
+            outletId: string | null;
             role: import("@prisma/client").$Enums.Role;
+        }, "password"> | null;
+        outlet: {
+            id: string;
+            name: string;
+            createdAt: Date;
+            updatedAt: Date;
+            isActive: boolean;
+            phone: string | null;
+            slug: string;
+            address: string | null;
         } | null;
         shift: {
             id: string;
+            outletId: string | null;
             status: string;
             userId: string;
-            startingCash: import("@prisma/client-runtime-utils").Decimal;
-            actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
             startTime: Date;
             endTime: Date | null;
+            startingCash: import("@prisma/client-runtime-utils").Decimal;
+            actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
         } | null;
         customer: {
             id: string;
@@ -169,9 +262,9 @@ export declare class TransactionsService {
             subtotal: import("@prisma/client-runtime-utils").Decimal;
             transactionId: string;
         })[];
-    } & {
         id: string;
         createdAt: Date;
+        outletId: string | null;
         status: import("@prisma/client").$Enums.TransactionStatus;
         paymentMethod: import("@prisma/client").$Enums.PaymentMethod;
         orderType: import("@prisma/client").$Enums.OrderType;
@@ -181,12 +274,24 @@ export declare class TransactionsService {
         shiftId: string | null;
         customerName: string | null;
         customerId: string | null;
+        source: import("@prisma/client").$Enums.TransactionSource;
+        userId: string | null;
         orderNumber: string | null;
         totalAmount: import("@prisma/client-runtime-utils").Decimal;
         kitchenStatus: import("@prisma/client").$Enums.KitchenStatus;
-        userId: string | null;
-    }) | null, null, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+        pricingMetadata: any;
+    } | null>;
     voidTransaction(id: string): Promise<{
+        outlet: {
+            id: string;
+            name: string;
+            createdAt: Date;
+            updatedAt: Date;
+            isActive: boolean;
+            phone: string | null;
+            slug: string;
+            address: string | null;
+        } | null;
         items: ({
             menu: {
                 id: string;
@@ -210,6 +315,7 @@ export declare class TransactionsService {
     } & {
         id: string;
         createdAt: Date;
+        outletId: string | null;
         status: import("@prisma/client").$Enums.TransactionStatus;
         paymentMethod: import("@prisma/client").$Enums.PaymentMethod;
         orderType: import("@prisma/client").$Enums.OrderType;
@@ -219,28 +325,63 @@ export declare class TransactionsService {
         shiftId: string | null;
         customerName: string | null;
         customerId: string | null;
+        source: import("@prisma/client").$Enums.TransactionSource;
+        userId: string | null;
         orderNumber: string | null;
         totalAmount: import("@prisma/client-runtime-utils").Decimal;
         kitchenStatus: import("@prisma/client").$Enums.KitchenStatus;
-        userId: string | null;
+    } & {
+        pricingMetadata: any;
     }>;
-    updateKitchenStatus(id: string, status: 'PENDING' | 'IN_PROGRESS' | 'DONE'): Promise<{
-        user: {
+    updateKitchenStatus(user: AuthenticatedUser, id: string, status: 'PENDING' | 'IN_PROGRESS' | 'DONE'): Promise<{
+        user: Omit<{
+            outlet: {
+                id: string;
+                name: string;
+                createdAt: Date;
+                updatedAt: Date;
+                isActive: boolean;
+                phone: string | null;
+                slug: string;
+                address: string | null;
+            } | null;
+        } & {
             id: string;
             name: string;
             createdAt: Date;
             email: string;
             password: string;
+            outletId: string | null;
             role: import("@prisma/client").$Enums.Role;
+        }, "password"> | null;
+        outlet: {
+            id: string;
+            name: string;
+            createdAt: Date;
+            updatedAt: Date;
+            isActive: boolean;
+            phone: string | null;
+            slug: string;
+            address: string | null;
         } | null;
         shift: {
             id: string;
+            outletId: string | null;
             status: string;
             userId: string;
-            startingCash: import("@prisma/client-runtime-utils").Decimal;
-            actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
             startTime: Date;
             endTime: Date | null;
+            startingCash: import("@prisma/client-runtime-utils").Decimal;
+            actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
+        } | null;
+        customer: {
+            id: string;
+            name: string;
+            createdAt: Date;
+            email: string | null;
+            phone: string | null;
+            pointBalance: number;
+            tier: import("@prisma/client").$Enums.CustomerTier;
         } | null;
         items: ({
             menu: {
@@ -262,9 +403,9 @@ export declare class TransactionsService {
             subtotal: import("@prisma/client-runtime-utils").Decimal;
             transactionId: string;
         })[];
-    } & {
         id: string;
         createdAt: Date;
+        outletId: string | null;
         status: import("@prisma/client").$Enums.TransactionStatus;
         paymentMethod: import("@prisma/client").$Enums.PaymentMethod;
         orderType: import("@prisma/client").$Enums.OrderType;
@@ -274,9 +415,16 @@ export declare class TransactionsService {
         shiftId: string | null;
         customerName: string | null;
         customerId: string | null;
+        source: import("@prisma/client").$Enums.TransactionSource;
+        userId: string | null;
         orderNumber: string | null;
         totalAmount: import("@prisma/client-runtime-utils").Decimal;
         kitchenStatus: import("@prisma/client").$Enums.KitchenStatus;
-        userId: string | null;
+        pricingMetadata: any;
     }>;
+    private attachPricingMetadata;
+    private resolveCustomerTier;
+    private resolveScopedOutletId;
+    private assertTransactionAccess;
 }
+export {};
