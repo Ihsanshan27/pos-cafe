@@ -4,49 +4,48 @@ import { UpdateIngredientDto } from './dto/update-ingredient.dto';
 export declare class IngredientsService {
     private prisma;
     constructor(prisma: PrismaService);
-    create(createIngredientDto: CreateIngredientDto): import("@prisma/client").Prisma.Prisma__IngredientClient<{
+    create(createIngredientDto: CreateIngredientDto): Promise<{
+        stockQuantity: number;
         id: string;
         name: string;
-        unit: string;
-        costPerUnit: import("@prisma/client-runtime-utils").Decimal;
-        stockQuantity: number;
         createdAt: Date;
         updatedAt: Date;
-    }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
-    findAll(): import("@prisma/client").Prisma.PrismaPromise<{
+        unit: string;
+        costPerUnit: import("@prisma/client-runtime-utils").Decimal;
+    }>;
+    findAll(outletId?: string): Promise<{
+        stockQuantity: number;
         id: string;
         name: string;
-        unit: string;
-        costPerUnit: import("@prisma/client-runtime-utils").Decimal;
-        stockQuantity: number;
         createdAt: Date;
         updatedAt: Date;
+        unit: string;
+        costPerUnit: import("@prisma/client-runtime-utils").Decimal;
     }[]>;
-    findOne(id: string): import("@prisma/client").Prisma.Prisma__IngredientClient<{
+    findOne(id: string, outletId?: string): Promise<{
+        stockQuantity: number;
         id: string;
         name: string;
-        unit: string;
-        costPerUnit: import("@prisma/client-runtime-utils").Decimal;
-        stockQuantity: number;
         createdAt: Date;
         updatedAt: Date;
-    } | null, null, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
-    update(id: string, updateIngredientDto: UpdateIngredientDto): import("@prisma/client").Prisma.Prisma__IngredientClient<{
+        unit: string;
+        costPerUnit: import("@prisma/client-runtime-utils").Decimal;
+    } | null>;
+    update(id: string, updateIngredientDto: UpdateIngredientDto): Promise<{
+        stockQuantity: number;
         id: string;
         name: string;
-        unit: string;
-        costPerUnit: import("@prisma/client-runtime-utils").Decimal;
-        stockQuantity: number;
         createdAt: Date;
         updatedAt: Date;
-    }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
+        unit: string;
+        costPerUnit: import("@prisma/client-runtime-utils").Decimal;
+    }>;
     remove(id: string): import("@prisma/client").Prisma.Prisma__IngredientClient<{
         id: string;
         name: string;
-        unit: string;
-        costPerUnit: import("@prisma/client-runtime-utils").Decimal;
-        stockQuantity: number;
         createdAt: Date;
         updatedAt: Date;
+        unit: string;
+        costPerUnit: import("@prisma/client-runtime-utils").Decimal;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
 }

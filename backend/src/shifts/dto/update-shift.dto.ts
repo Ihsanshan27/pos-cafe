@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsIn, IsNumber, IsOptional } from 'class-validator';
+import { IsIn, IsNumber, IsOptional, IsString } from 'class-validator';
 
 export class UpdateShiftDto {
   @IsOptional()
@@ -10,4 +10,8 @@ export class UpdateShiftDto {
   @IsOptional()
   @IsIn(['OPEN', 'CLOSED'])
   status?: 'OPEN' | 'CLOSED';
+
+  @IsOptional()
+  @IsString()
+  notes?: string;
 }

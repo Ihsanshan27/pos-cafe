@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Request,
   UploadedFile,
   UseGuards,
   UseInterceptors,
@@ -47,8 +48,8 @@ export class SettingsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.OWNER)
   @Patch()
-  async setManySettings(@Body('settings') settings: Record<string, string>) {
-    return this.settingsService.setManySettings(settings ?? {});
+  async setManySettings(@Request() req: any, @Body('settings') settings: Record<string, string>) {
+    return this.settingsService.setManySettings(settings ?? {}, req.user, req.ip);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -102,11 +103,11 @@ export class SettingsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.OWNER)
   @Post('restore-backup')
-  async restoreBackup(@Body('backup') backup: any) {
+  async restoreBackup(@Request() req: any, @Body('backup') backup: any) {
     if (!backup?.data) {
       throw new BadRequestException('Backup payload is required');
     }
-    return this.settingsService.restoreBackup(backup);
+    return this.settingsService.restoreBackup(backup, req.user, req.ip);
   }
 
   @UseGuards(JwtAuthGuard, RolesGuard)
@@ -119,8 +120,15 @@ export class SettingsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.OWNER)
   @Post('reset-demo-data')
-  async resetDemoData() {
-    return this.settingsService.resetDemoData();
+  async resetDemoData(@Request() req: any) {
+    return this.settingsService.resetDemoData(req.user, req.ip);
+  }
+
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.OWNER)
+  @Get('audit-logs')
+  async getAuditLogs() {
+    return this.settingsService.getAuditLogs();
   }
 
   @Get(':key')

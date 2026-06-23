@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, Query } from '@nestjs/common';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -19,13 +19,13 @@ export class IngredientsController {
   }
 
   @Get()
-  findAll() {
-    return this.ingredientsService.findAll();
+  findAll(@Query('outletId') outletId?: string) {
+    return this.ingredientsService.findAll(outletId);
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
-    return this.ingredientsService.findOne(id);
+  findOne(@Param('id') id: string, @Query('outletId') outletId?: string) {
+    return this.ingredientsService.findOne(id, outletId);
   }
 
   @Patch(':id')

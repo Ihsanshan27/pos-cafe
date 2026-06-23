@@ -17,33 +17,32 @@ export declare class PurchaseOrdersController {
         outlet: {
             id: string;
             name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            isActive: boolean;
-            phone: string | null;
             slug: string;
             address: string | null;
+            phone: string | null;
+            isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
         } | null;
         supplier: {
             id: string;
             name: string;
+            address: string | null;
+            phone: string | null;
+            isActive: boolean;
             createdAt: Date;
             updatedAt: Date;
             email: string | null;
             notes: string | null;
-            isActive: boolean;
-            phone: string | null;
-            address: string | null;
         };
         items: ({
             ingredient: {
                 id: string;
                 name: string;
-                unit: string;
-                costPerUnit: import("@prisma/client-runtime-utils").Decimal;
-                stockQuantity: number;
                 createdAt: Date;
                 updatedAt: Date;
+                unit: string;
+                costPerUnit: import("@prisma/client-runtime-utils").Decimal;
             };
         } & {
             id: string;
@@ -76,33 +75,32 @@ export declare class PurchaseOrdersController {
         outlet: {
             id: string;
             name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            isActive: boolean;
-            phone: string | null;
             slug: string;
             address: string | null;
+            phone: string | null;
+            isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
         } | null;
         supplier: {
             id: string;
             name: string;
+            address: string | null;
+            phone: string | null;
+            isActive: boolean;
             createdAt: Date;
             updatedAt: Date;
             email: string | null;
             notes: string | null;
-            isActive: boolean;
-            phone: string | null;
-            address: string | null;
         };
         items: ({
             ingredient: {
                 id: string;
                 name: string;
-                unit: string;
-                costPerUnit: import("@prisma/client-runtime-utils").Decimal;
-                stockQuantity: number;
                 createdAt: Date;
                 updatedAt: Date;
+                unit: string;
+                costPerUnit: import("@prisma/client-runtime-utils").Decimal;
             };
         } & {
             id: string;
@@ -135,33 +133,32 @@ export declare class PurchaseOrdersController {
         outlet: {
             id: string;
             name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            isActive: boolean;
-            phone: string | null;
             slug: string;
             address: string | null;
+            phone: string | null;
+            isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
         } | null;
         supplier: {
             id: string;
             name: string;
+            address: string | null;
+            phone: string | null;
+            isActive: boolean;
             createdAt: Date;
             updatedAt: Date;
             email: string | null;
             notes: string | null;
-            isActive: boolean;
-            phone: string | null;
-            address: string | null;
         };
         items: ({
             ingredient: {
                 id: string;
                 name: string;
-                unit: string;
-                costPerUnit: import("@prisma/client-runtime-utils").Decimal;
-                stockQuantity: number;
                 createdAt: Date;
                 updatedAt: Date;
+                unit: string;
+                costPerUnit: import("@prisma/client-runtime-utils").Decimal;
             };
         } & {
             id: string;
@@ -197,33 +194,32 @@ export declare class PurchaseOrdersController {
         outlet: {
             id: string;
             name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            isActive: boolean;
-            phone: string | null;
             slug: string;
             address: string | null;
+            phone: string | null;
+            isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
         } | null;
         supplier: {
             id: string;
             name: string;
+            address: string | null;
+            phone: string | null;
+            isActive: boolean;
             createdAt: Date;
             updatedAt: Date;
             email: string | null;
             notes: string | null;
-            isActive: boolean;
-            phone: string | null;
-            address: string | null;
         };
         items: ({
             ingredient: {
                 id: string;
                 name: string;
-                unit: string;
-                costPerUnit: import("@prisma/client-runtime-utils").Decimal;
-                stockQuantity: number;
                 createdAt: Date;
                 updatedAt: Date;
+                unit: string;
+                costPerUnit: import("@prisma/client-runtime-utils").Decimal;
             };
         } & {
             id: string;

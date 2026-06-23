@@ -1,4 +1,4 @@
-import { IsString, IsNumber, Min } from 'class-validator';
+import { IsString, IsNumber, Min, IsOptional } from 'class-validator';
 
 export class CreateIngredientDto {
   @IsString()
@@ -11,7 +11,12 @@ export class CreateIngredientDto {
   @Min(0)
   costPerUnit: number;
 
+  @IsOptional()
   @IsNumber()
   @Min(0)
-  stockQuantity: number;
+  stockQuantity?: number;
+
+  @IsOptional()
+  @IsString()
+  outletId?: string;
 }

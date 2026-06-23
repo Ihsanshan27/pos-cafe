@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { menuApi, ingredientApi, categoryApi, resolveMediaUrl } from '../lib/api';
+import { menuApi, ingredientApi, categoryApi, resolveMediaUrl, outletApi } from '../lib/api';
 import type { Menu, CreateMenuPayload, Category } from '../lib/api';
-import { Plus, Search, Pencil, Trash2, UtensilsCrossed, X, Check, TrendingUp, Eye } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, UtensilsCrossed, X, Check, TrendingUp, Eye, MapPin } from 'lucide-react';
 
 function formatCurrency(val: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
@@ -24,14 +24,15 @@ const emptyForm: FormData = { name: '', description: '', sellingPrice: '', image
 export default function MenusPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
-  const [modal, setModal] = useState<'create' | 'edit' | 'view' | null>(null);
+  const [modal, setModal] = useState<'create' | 'edit' | 'view' | 'overrides' | null>(null);
   const [selected, setSelected] = useState<Menu | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
-  const { data: menus = [], isLoading } = useQuery({ queryKey: ['menus'], queryFn: menuApi.getAll });
-  const { data: ingredients = [] } = useQuery({ queryKey: ['ingredients'], queryFn: ingredientApi.getAll });
+  const { data: menus = [], isLoading } = useQuery({ queryKey: ['menus'], queryFn: () => menuApi.getAll() });
+  const { data: ingredients = [] } = useQuery({ queryKey: ['ingredients'], queryFn: () => ingredientApi.getAll() });
   const { data: categories = [] } = useQuery({ queryKey: ['categories'], queryFn: categoryApi.getAll });
+  const { data: outlets = [] } = useQuery({ queryKey: ['outlets'], queryFn: outletApi.getAll });
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -87,6 +88,10 @@ export default function MenusPage() {
   const openView = (m: Menu) => {
     setSelected(m);
     setModal('view');
+  };
+  const openOverrides = (m: Menu) => {
+    setSelected(m);
+    setModal('overrides');
   };
   const openEdit = (m: Menu) => {
     setSelected(m);
@@ -187,9 +192,10 @@ export default function MenusPage() {
                       <td><span className="badge badge-accent">{m.ingredients.length} items</span></td>
                       <td>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
-                          <button className="btn btn-secondary btn-icon btn-sm" onClick={() => openView(m)}><Eye size={14} /></button>
-                          <button className="btn btn-secondary btn-icon btn-sm" onClick={() => openEdit(m)}><Pencil size={14} /></button>
-                          <button className="btn btn-danger btn-icon btn-sm" onClick={() => { if (confirm(`Delete "${m.name}"?`)) deleteMut.mutate(m.id); }}><Trash2 size={14} /></button>
+                          <button className="btn btn-secondary btn-icon btn-sm" onClick={() => openView(m)} title="View Details"><Eye size={14} /></button>
+                          <button className="btn btn-secondary btn-icon btn-sm" onClick={() => openOverrides(m)} title="Atur per Cabang"><MapPin size={14} /></button>
+                          <button className="btn btn-secondary btn-icon btn-sm" onClick={() => openEdit(m)} title="Edit Menu"><Pencil size={14} /></button>
+                          <button className="btn btn-danger btn-icon btn-sm" onClick={() => { if (confirm(`Delete "${m.name}"?`)) deleteMut.mutate(m.id); }} title="Delete Menu"><Trash2 size={14} /></button>
                         </div>
                       </td>
                     </tr>
@@ -263,7 +269,46 @@ export default function MenusPage() {
         </div>
       )}
 
-      {modal && modal !== 'view' && (
+      {modal === 'overrides' && selected && (
+        <div className="modal-overlay" onClick={() => setModal(null)}>
+          <div className="modal" style={{ maxWidth: 650 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Atur Menu per Cabang: {selected.name}</h3>
+              <button className="btn btn-secondary btn-icon btn-sm" onClick={() => setModal(null)}><X size={16} /></button>
+            </div>
+            
+            <div style={{ overflowY: 'auto', maxHeight: '60vh', paddingRight: '0.25rem' }}>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+                Tentukan harga jual khusus atau nonaktifkan menu ini pada cabang tertentu. Jika dinonaktifkan, menu tidak akan muncul di kasir POS/QR meja cabang tersebut.
+              </p>
+              
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                {outlets.map((outlet) => {
+                  const override = selected.outletMenus?.find(o => o.outletId === outlet.id);
+                  return (
+                    <OutletOverrideRow
+                      key={outlet.id}
+                      outlet={outlet}
+                      menu={selected}
+                      initialOverride={override}
+                      onSuccess={() => {
+                        qc.invalidateQueries({ queryKey: ['menus'] });
+                        showToast('Pengaturan cabang diperbarui!');
+                      }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+            
+            <div className="modal-footer" style={{ marginTop: '1.5rem' }}>
+              <button className="btn btn-primary" onClick={() => setModal(null)} style={{ width: '100%', justifyContent: 'center' }}>Selesai</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {modal && modal !== 'view' && modal !== 'overrides' && (
         <div className="modal-overlay" onClick={() => setModal(null)}>
           <div className="modal" style={{ maxWidth: 600 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
@@ -384,6 +429,83 @@ export default function MenusPage() {
           {toast.msg}
         </div>
       )}
+    </div>
+  );
+}
+
+function OutletOverrideRow({ outlet, menu, initialOverride, onSuccess }: { outlet: any; menu: any; initialOverride: any; onSuccess: () => void }) {
+  const [isGlobal, setIsGlobal] = useState(!initialOverride);
+  const [price, setPrice] = useState(initialOverride ? String(initialOverride.sellingPrice) : String(menu.sellingPrice));
+  const [isActive, setIsActive] = useState(initialOverride ? initialOverride.isActive : true);
+  const [isPending, setIsPending] = useState(false);
+
+  const handleSave = async () => {
+    setIsPending(true);
+    try {
+      if (isGlobal) {
+        if (initialOverride) {
+          await menuApi.deleteOutletOverride(menu.id, outlet.id);
+        }
+      } else {
+        await menuApi.upsertOutletOverride(menu.id, {
+          outletId: outlet.id,
+          sellingPrice: Number(price),
+          isActive: isActive,
+        });
+      }
+      onSuccess();
+    } catch (err: any) {
+      alert(err?.response?.data?.message || 'Gagal menyimpan pengaturan cabang');
+    } finally {
+      setIsPending(false);
+    }
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '0.75rem', border: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+        <strong style={{ fontSize: '0.95rem' }}>{outlet.name}</strong>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.8rem', cursor: 'pointer', margin: 0 }}>
+          <input type="checkbox" checked={isGlobal} onChange={(e) => {
+            setIsGlobal(e.target.checked);
+            if (e.target.checked) {
+              setPrice(String(menu.sellingPrice));
+              setIsActive(true);
+            }
+          }} />
+          Ikuti Pengaturan Global
+        </label>
+      </div>
+
+      {!isGlobal && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '0.75rem', alignItems: 'center', marginTop: '0.25rem' }}>
+          <div className="form-group" style={{ margin: 0 }}>
+            <label style={{ fontSize: '0.75rem', marginBottom: '0.15rem' }}>Harga Jual Cabang (Rp)</label>
+            <input type="number" className="input" style={{ padding: '0.35rem 0.5rem', fontSize: '0.85rem' }} value={price} onChange={e => setPrice(e.target.value)} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem', alignItems: 'center' }}>
+            <label style={{ fontSize: '0.75rem', margin: 0 }}>Status Menu</label>
+            <button
+              className={`btn btn-sm ${isActive ? 'btn-success' : 'btn-danger'}`}
+              style={{ padding: '0.35rem 0.6rem', fontSize: '0.8rem', fontWeight: 600 }}
+              onClick={() => setIsActive(!isActive)}
+            >
+              {isActive ? 'Aktif' : 'Nonaktif'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '0.25rem' }}>
+        <button
+          className="btn btn-secondary btn-sm"
+          style={{ padding: '0.35rem 0.75rem', fontSize: '0.8rem' }}
+          onClick={handleSave}
+          disabled={isPending || (!isGlobal && (!price || Number(price) < 0))}
+        >
+          {isPending ? 'Menyimpan...' : 'Terapkan'}
+        </button>
+      </div>
     </div>
   );
 }

@@ -12,6 +12,7 @@ const transactions_controller_1 = require("./transactions.controller");
 const transactions_service_1 = require("./transactions.service");
 const prisma_module_1 = require("../prisma/prisma.module");
 const settings_module_1 = require("../settings/settings.module");
+const kds_gateway_1 = require("./kds.gateway");
 let TransactionsModule = class TransactionsModule {
 };
 exports.TransactionsModule = TransactionsModule;
@@ -19,8 +20,8 @@ exports.TransactionsModule = TransactionsModule = __decorate([
     (0, common_1.Module)({
         imports: [prisma_module_1.PrismaModule, settings_module_1.SettingsModule],
         controllers: [transactions_controller_1.TransactionsController],
-        providers: [transactions_service_1.TransactionsService],
-        exports: [transactions_service_1.TransactionsService],
+        providers: [transactions_service_1.TransactionsService, kds_gateway_1.KdsGateway],
+        exports: [transactions_service_1.TransactionsService, kds_gateway_1.KdsGateway],
     })
 ], TransactionsModule);
 //# sourceMappingURL=transactions.module.js.map

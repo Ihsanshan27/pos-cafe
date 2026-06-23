@@ -4,6 +4,7 @@ import { ingredientApi } from '../lib/api';
 import type { Ingredient } from '../lib/api';
 import { Plus, Search, Pencil, Trash2, Package, X, Check } from 'lucide-react';
 import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
+import { useActiveOutlet } from '../hooks/useActiveOutlet';
 
 function formatCurrency(val: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
@@ -27,6 +28,7 @@ function getStockStatus(stockQuantity: number, lowStockThreshold: number) {
 export default function IngredientsPage() {
   const qc = useQueryClient();
   const { lowStockThreshold } = useAppPublicSettings();
+  const { activeOutletId } = useActiveOutlet();
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState<'create' | 'edit' | null>(null);
   const [selected, setSelected] = useState<Ingredient | null>(null);
@@ -34,8 +36,8 @@ export default function IngredientsPage() {
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
 
   const { data: ingredients = [], isLoading } = useQuery({
-    queryKey: ['ingredients'],
-    queryFn: ingredientApi.getAll,
+    queryKey: ['ingredients', activeOutletId],
+    queryFn: () => ingredientApi.getAll(activeOutletId || undefined),
   });
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
@@ -45,14 +47,26 @@ export default function IngredientsPage() {
 
   const createMut = useMutation({
     mutationFn: (data: FormData) =>
-      ingredientApi.create({ name: data.name, unit: data.unit, costPerUnit: Number(data.costPerUnit), stockQuantity: Number(data.stockQuantity) }),
+      ingredientApi.create({
+        name: data.name,
+        unit: data.unit,
+        costPerUnit: Number(data.costPerUnit),
+        stockQuantity: Number(data.stockQuantity),
+        outletId: activeOutletId || undefined,
+      }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['ingredients'] }); setModal(null); showToast('Ingredient created!'); },
     onError: () => showToast('Failed to create ingredient', 'error'),
   });
 
   const updateMut = useMutation({
     mutationFn: (data: FormData) =>
-      ingredientApi.update(selected!.id, { name: data.name, unit: data.unit, costPerUnit: Number(data.costPerUnit), stockQuantity: Number(data.stockQuantity) }),
+      ingredientApi.update(selected!.id, {
+        name: data.name,
+        unit: data.unit,
+        costPerUnit: Number(data.costPerUnit),
+        stockQuantity: Number(data.stockQuantity),
+        outletId: activeOutletId || undefined,
+      }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['ingredients'] }); setModal(null); showToast('Ingredient updated!'); },
     onError: () => showToast('Failed to update ingredient', 'error'),
   });

@@ -1,3 +1,4 @@
+import * as express from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/auth.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -11,41 +12,44 @@ export declare class AuthController {
         id: string;
         name: string;
         createdAt: Date;
-        email: string;
-        outletId: string | null;
-        role: import("@prisma/client").$Enums.Role;
         outlet: {
             id: string;
             name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            isActive: boolean;
-            phone: string | null;
             slug: string;
             address: string | null;
+            phone: string | null;
+            isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
         } | null;
+        email: string;
+        outletId: string | null;
+        role: import("@prisma/client").$Enums.Role;
     }>;
-    login(dto: LoginDto): Promise<{
+    login(dto: LoginDto, response: express.Response): Promise<{
         accessToken: string;
         user: {
             mustChangePassword: boolean;
             id: string;
             name: string;
             createdAt: Date;
-            email: string;
-            outletId: string | null;
-            role: import("@prisma/client").$Enums.Role;
             outlet: {
                 id: string;
                 name: string;
-                createdAt: Date;
-                updatedAt: Date;
-                isActive: boolean;
-                phone: string | null;
                 slug: string;
                 address: string | null;
+                phone: string | null;
+                isActive: boolean;
+                createdAt: Date;
+                updatedAt: Date;
             } | null;
+            email: string;
+            outletId: string | null;
+            role: import("@prisma/client").$Enums.Role;
         };
+    }>;
+    logout(response: express.Response): Promise<{
+        success: boolean;
     }>;
     getProfile(req: any): any;
     updateProfile(req: any, data: {
@@ -57,18 +61,18 @@ export declare class AuthController {
         id: string;
         name: string;
         createdAt: Date;
-        email: string;
-        outletId: string | null;
-        role: import("@prisma/client").$Enums.Role;
         outlet: {
             id: string;
             name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            isActive: boolean;
-            phone: string | null;
             slug: string;
             address: string | null;
+            phone: string | null;
+            isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
         } | null;
+        email: string;
+        outletId: string | null;
+        role: import("@prisma/client").$Enums.Role;
     }>;
 }

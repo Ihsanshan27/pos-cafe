@@ -35,8 +35,8 @@ export class TransactionsController {
   @UseGuards(RolesGuard)
   @Roles(Role.OWNER, Role.MANAGER)
   @Patch(':id/void')
-  voidTransaction(@Param('id') id: string) {
-    return this.transactionsService.voidTransaction(id);
+  voidTransaction(@Request() req: any, @Param('id') id: string) {
+    return this.transactionsService.voidTransaction(req.user, id, req.ip);
   }
 
   @UseGuards(RolesGuard)

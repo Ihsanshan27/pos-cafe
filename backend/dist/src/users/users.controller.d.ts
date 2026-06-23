@@ -8,12 +8,12 @@ export declare class UsersController {
         outlet: {
             id: string;
             name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            isActive: boolean;
-            phone: string | null;
             slug: string;
             address: string | null;
+            phone: string | null;
+            isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
         } | null;
     } & {
         id: string;
@@ -28,12 +28,12 @@ export declare class UsersController {
         outlet: {
             id: string;
             name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            isActive: boolean;
-            phone: string | null;
             slug: string;
             address: string | null;
+            phone: string | null;
+            isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
         } | null;
     } & {
         id: string;
@@ -48,12 +48,12 @@ export declare class UsersController {
         outlet: {
             id: string;
             name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            isActive: boolean;
-            phone: string | null;
             slug: string;
             address: string | null;
+            phone: string | null;
+            isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
         } | null;
     } & {
         id: string;
@@ -68,12 +68,12 @@ export declare class UsersController {
         outlet: {
             id: string;
             name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            isActive: boolean;
-            phone: string | null;
             slug: string;
             address: string | null;
+            phone: string | null;
+            isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
         } | null;
     } & {
         id: string;
@@ -88,12 +88,12 @@ export declare class UsersController {
         outlet: {
             id: string;
             name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            isActive: boolean;
-            phone: string | null;
             slug: string;
             address: string | null;
+            phone: string | null;
+            isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
         } | null;
     } & {
         id: string;

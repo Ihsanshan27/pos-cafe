@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { menuApi, transactionApi, categoryApi, discountApi, shiftApi, customerApi, resolveMediaUrl } from '../lib/api';
-import type { Menu, Transaction, Category, Discount, Shift, Customer } from '../lib/api';
-import { Search, ShoppingCart, X, Plus, Minus, CheckCircle, Trash2, Printer, Percent, MapPin, Hash, LogIn, Info, User, SlidersHorizontal } from 'lucide-react';
+import { menuApi, transactionApi, categoryApi, discountApi, shiftApi, customerApi, resolveMediaUrl, ingredientApi } from '../lib/api';
+import type { Menu, Transaction, Category, Discount, Shift, Customer, Ingredient, ShiftSummary } from '../lib/api';
+import { Search, ShoppingCart, X, Plus, Minus, CheckCircle, Trash2, Printer, Percent, MapPin, Hash, LogIn, Info, User, SlidersHorizontal, LogOut, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
 import { calculatePricing } from '../lib/pricing';
@@ -14,7 +14,7 @@ function formatCurrency(val: number) {
 
 type CartItem = { menu: Menu; quantity: number; notes?: string };
 
-function getMenuAvailability(menu: Menu, lowStockThreshold: number) {
+function getMenuAvailability(menu: Menu, lowStockThreshold: number, stockMap: Map<string, number>) {
   if (!menu.ingredients || menu.ingredients.length === 0) {
     return {
       isLowStock: false,
@@ -23,12 +23,20 @@ function getMenuAvailability(menu: Menu, lowStockThreshold: number) {
     };
   }
 
-  const criticalIngredient = menu.ingredients.find((item) => item.ingredient.stockQuantity < lowStockThreshold);
+  let criticalIngredient: any = null;
+  for (const item of menu.ingredients) {
+    const stock = stockMap.get(item.ingredientId) ?? 0;
+    if (stock < lowStockThreshold) {
+      criticalIngredient = { name: item.ingredient.name, stock, unit: item.ingredient.unit };
+      break;
+    }
+  }
+
   return {
     isLowStock: Boolean(criticalIngredient),
     isBlocked: Boolean(criticalIngredient),
     reason: criticalIngredient
-      ? `${criticalIngredient.ingredient.name} tinggal ${criticalIngredient.ingredient.stockQuantity} ${criticalIngredient.ingredient.unit}`
+      ? `${criticalIngredient.name} tinggal ${criticalIngredient.stock} ${criticalIngredient.unit}`
       : '',
   };
 }
@@ -81,16 +89,32 @@ export default function POSPage() {
   const [hasAppliedOrderDefaults, setHasAppliedOrderDefaults] = useState(false);
   
   const [startingCash, setStartingCash] = useState('');
+  const [isCloseShiftOpen, setIsCloseShiftOpen] = useState(false);
+  const [closeShiftActualCash, setCloseShiftActualCash] = useState('');
+  const [closeShiftNotes, setCloseShiftNotes] = useState('');
+  const [shiftSummary, setShiftSummary] = useState<ShiftSummary | null>(null);
+  const [isFetchingSummary, setIsFetchingSummary] = useState(false);
 
-  const { data: menus = [], isLoading: isMenusLoading } = useQuery({ queryKey: ['menus'], queryFn: menuApi.getAll });
+  const { data: menus = [], isLoading: isMenusLoading } = useQuery({
+    queryKey: ['menus', activeOutletId],
+    queryFn: () => menuApi.getAll(activeOutletId || undefined),
+  });
   const { data: categories = [] } = useQuery({ queryKey: ['categories'], queryFn: categoryApi.getAll });
   const { data: discounts = [] } = useQuery({ queryKey: ['discounts'], queryFn: discountApi.getAll });
   const { data: customers = [] } = useQuery({ queryKey: ['customers'], queryFn: customerApi.getAll });
+  const { data: ingredients = [] } = useQuery({
+    queryKey: ['ingredients', activeOutletId],
+    queryFn: () => ingredientApi.getAll(activeOutletId || undefined),
+  });
   const { data: activeShift, isLoading: isShiftLoading } = useQuery({ 
     queryKey: ['activeShift', activeOutletId], 
     queryFn: () => shiftApi.getActive(activeOutletId || undefined),
     retry: 0
   });
+
+  const ingredientStockMap = useMemo(() => {
+    return new Map(ingredients.map((i) => [i.id, i.stockQuantity]));
+  }, [ingredients]);
 
   useEffect(() => {
     if (hasAppliedOrderDefaults) return;
@@ -207,6 +231,39 @@ export default function POSPage() {
     onError: (err: any) => showToast(err?.response?.data?.message || 'Failed to open shift', 'error'),
   });
 
+  const closeShiftMut = useMutation({
+    mutationFn: () =>
+      shiftApi.update(activeShift!.id, {
+        status: 'CLOSED',
+        actualEndingCash: closeShiftActualCash !== '' ? Number(closeShiftActualCash) : undefined,
+        notes: closeShiftNotes || undefined,
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['activeShift'] });
+      qc.invalidateQueries({ queryKey: ['shifts'] });
+      setIsCloseShiftOpen(false);
+      setCloseShiftActualCash('');
+      setCloseShiftNotes('');
+      setShiftSummary(null);
+      showToast('Shift berhasil ditutup ✓');
+    },
+    onError: (err: any) => showToast(err?.response?.data?.message || 'Gagal menutup shift', 'error'),
+  });
+
+  const openCloseShiftModal = async () => {
+    if (!activeShift) return;
+    setIsCloseShiftOpen(true);
+    setIsFetchingSummary(true);
+    try {
+      const summary = await shiftApi.getSummary(activeShift.id);
+      setShiftSummary(summary);
+    } catch {
+      setShiftSummary(null);
+    } finally {
+      setIsFetchingSummary(false);
+    }
+  };
+
   const checkoutMut = useMutation({
     mutationFn: () => {
       let discAmt = 0;
@@ -263,7 +320,7 @@ export default function POSPage() {
   });
 
   const addToCart = (menu: Menu) => {
-    const availability = getMenuAvailability(menu, lowStockThreshold);
+    const availability = getMenuAvailability(menu, lowStockThreshold, ingredientStockMap);
     if (blockSaleOnLowStock && availability.isBlocked) {
       showToast(`Menu ${menu.name} diblokir: ${availability.reason}`, 'error');
       return;
@@ -320,7 +377,8 @@ export default function POSPage() {
   const filtered = menus.filter((m) => {
     const matchSearch = m.name.toLowerCase().includes(search.toLowerCase());
     const matchCat = selectedCategoryId === 'ALL' || (m as any).categoryId === selectedCategoryId;
-    return matchSearch && matchCat;
+    const isMenuAvailable = m.isActive !== false;
+    return matchSearch && matchCat && isMenuAvailable;
   });
 
   if (isShiftLoading) return <div style={{ padding: '2rem' }}>Loading POS...</div>;
@@ -401,7 +459,7 @@ export default function POSPage() {
             <div className="menu-grid" style={{ paddingBottom: '2rem' }}>
               {filtered.map((menu) => {
                 const inCart = cart.find((c) => c.menu.id === menu.id);
-                const availability = getMenuAvailability(menu, lowStockThreshold);
+                const availability = getMenuAvailability(menu, lowStockThreshold, ingredientStockMap);
                 const isMenuBlocked = blockSaleOnLowStock && availability.isBlocked;
                 return (
                   <div
@@ -469,7 +527,7 @@ export default function POSPage() {
 
       {/* Cart Panel */}
       <div className="cart-panel" style={{ width: 380, display: 'flex', flexDirection: 'column' }}>
-        <div className="cart-header">
+      <div className="cart-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <ShoppingCart size={18} />
             Order
@@ -479,9 +537,18 @@ export default function POSPage() {
               </span>
             )}
           </div>
-          {cart.length > 0 && (
-            <button className="btn btn-danger btn-sm" onClick={clearCart}><Trash2 size={13} /> Clear</button>
-          )}
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {cart.length > 0 && (
+              <button className="btn btn-danger btn-sm" onClick={clearCart}><Trash2 size={13} /> Clear</button>
+            )}
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={openCloseShiftModal}
+              title="Tutup Shift"
+            >
+              <LogOut size={13} /> Tutup Shift
+            </button>
+          </div>
         </div>
 
         <div className="cart-items" style={{ flex: 1, overflowY: 'auto' }}>
@@ -902,7 +969,7 @@ export default function POSPage() {
                 style={{ width: '100%', justifyContent: 'center' }}
                 onClick={() => {
                   addToCart(detailMenu);
-                  if (!(blockSaleOnLowStock && getMenuAvailability(detailMenu, lowStockThreshold).isBlocked)) {
+                  if (!(blockSaleOnLowStock && getMenuAvailability(detailMenu, lowStockThreshold, ingredientStockMap).isBlocked)) {
                     setDetailMenu(null);
                   }
                 }}
@@ -1061,6 +1128,135 @@ export default function POSPage() {
                 <Printer size={16} /> Print
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Close Shift Modal */}
+      {isCloseShiftOpen && (
+        <div className="modal-overlay" onClick={() => setIsCloseShiftOpen(false)}>
+          <div className="modal" style={{ maxWidth: 500 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <div>
+                <h3 style={{ margin: 0 }}>Tutup Shift</h3>
+                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>
+                  Rekonsiliasi Kas — {activeShift && new Date(activeShift.startTime).toLocaleString('id-ID')}
+                </p>
+              </div>
+              <button className="btn btn-secondary btn-icon btn-sm" onClick={() => setIsCloseShiftOpen(false)}>
+                <X size={16} />
+              </button>
+            </div>
+
+            {isFetchingSummary ? (
+              <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                Memuat ringkasan shift...
+              </div>
+            ) : (
+              <div style={{ padding: '0 0 1rem' }}>
+                {/* Summary Table */}
+                {shiftSummary && (
+                  <div style={{ background: 'var(--bg-secondary)', borderRadius: '0.75rem', padding: '1rem', marginBottom: '1rem', border: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Ringkasan Shift
+                    </div>
+                    {[
+                      { label: 'Modal Awal Kas', value: shiftSummary.startingCash, color: 'var(--text-primary)' },
+                      { label: `Penjualan Tunai (${shiftSummary.transactionCount} transaksi)`, value: shiftSummary.totalCashSales, color: 'var(--success)' },
+                      { label: 'Penjualan Non-Tunai (QRIS/Debit)', value: shiftSummary.totalNonCashSales, color: 'var(--accent)' },
+                      { label: 'Total Pengeluaran', value: -shiftSummary.totalExpenses, color: 'var(--danger)' },
+                    ].map((row, i) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.88rem', marginBottom: '0.5rem' }}>
+                        <span style={{ color: 'var(--text-muted)' }}>{row.label}</span>
+                        <span style={{ fontWeight: 600, color: row.color }}>
+                          {row.value < 0 ? '-' : ''}{formatCurrency(Math.abs(row.value))}
+                        </span>
+                      </div>
+                    ))}
+                    <div style={{ borderTop: '2px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.5rem' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: '1rem' }}>
+                        <span>Expected Cash</span>
+                        <span style={{ color: 'var(--accent)' }}>{formatCurrency(shiftSummary.expectedEndingCash)}</span>
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
+                        = Modal Awal + Penjualan Tunai − Pengeluaran
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Actual Cash Input */}
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
+                    Kas Aktual (Uang tunai di laci) *
+                  </label>
+                  <input
+                    type="number"
+                    className="form-control"
+                    placeholder="Masukkan jumlah uang tunai di laci..."
+                    value={closeShiftActualCash}
+                    onChange={(e) => setCloseShiftActualCash(e.target.value)}
+                    style={{ width: '100%' }}
+                  />
+                  {closeShiftActualCash !== '' && shiftSummary && (
+                    <div style={{
+                      marginTop: '0.5rem',
+                      padding: '0.6rem 0.75rem',
+                      borderRadius: '0.5rem',
+                      background: (Number(closeShiftActualCash) - shiftSummary.expectedEndingCash) >= 0
+                        ? 'rgba(16,185,129,0.1)'
+                        : 'rgba(239,68,68,0.1)',
+                      border: `1px solid ${(Number(closeShiftActualCash) - shiftSummary.expectedEndingCash) >= 0 ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                    }}>
+                      {(Number(closeShiftActualCash) - shiftSummary.expectedEndingCash) !== 0 && (
+                        <AlertTriangle size={15} color={(Number(closeShiftActualCash) - shiftSummary.expectedEndingCash) >= 0 ? '#059669' : '#dc2626'} />
+                      )}
+                      <div>
+                        <span style={{ fontSize: '0.82rem', fontWeight: 700, color: (Number(closeShiftActualCash) - shiftSummary.expectedEndingCash) >= 0 ? '#059669' : '#dc2626' }}>
+                          Selisih: {(Number(closeShiftActualCash) - shiftSummary.expectedEndingCash) >= 0 ? '+' : ''}{formatCurrency(Number(closeShiftActualCash) - shiftSummary.expectedEndingCash)}
+                        </span>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: '0.5rem' }}>
+                          {(Number(closeShiftActualCash) - shiftSummary.expectedEndingCash) === 0 ? '✓ Pas' :
+                           (Number(closeShiftActualCash) - shiftSummary.expectedEndingCash) > 0 ? '(Lebih)' : '(Kurang)'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Notes */}
+                <div style={{ marginBottom: '1rem' }}>
+                  <label style={{ fontSize: '0.82rem', fontWeight: 600, color: 'var(--text-secondary)', display: 'block', marginBottom: '0.4rem' }}>
+                    Catatan Penutupan (opsional)
+                  </label>
+                  <textarea
+                    className="form-control"
+                    placeholder="Catatan tambahan dari kasir..."
+                    value={closeShiftNotes}
+                    onChange={(e) => setCloseShiftNotes(e.target.value)}
+                    rows={2}
+                    style={{ width: '100%', resize: 'none' }}
+                  />
+                </div>
+
+                <div className="modal-footer" style={{ paddingBottom: 0 }}>
+                  <button className="btn btn-secondary" onClick={() => setIsCloseShiftOpen(false)}>
+                    Batal
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    disabled={closeShiftMut.isPending}
+                    onClick={() => closeShiftMut.mutate()}
+                  >
+                    <LogOut size={15} />
+                    {closeShiftMut.isPending ? 'Menutup...' : 'Tutup Shift Sekarang'}
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -87,17 +87,85 @@ let ShiftsService = class ShiftsService {
             user: (0, user_response_util_1.sanitizeUser)(shift.user),
         };
     }
+    async getShiftSummary(user, id) {
+        const shift = await this.prisma.shift.findUnique({
+            where: { id },
+            include: { transactions: true },
+        });
+        if (!shift)
+            throw new common_1.BadRequestException('Shift not found');
+        this.assertShiftAccess(user, shift.userId, shift.outletId);
+        return this.computeShiftSummary(shift);
+    }
+    async computeShiftSummary(shift) {
+        const transactions = await this.prisma.transaction.findMany({
+            where: { shiftId: shift.id, status: 'COMPLETED' },
+        });
+        const expenses = await this.prisma.expense.findMany({
+            where: {
+                ...(shift.outletId ? { outletId: shift.outletId } : {}),
+                createdAt: {
+                    gte: shift.startTime,
+                    ...(shift.endTime ? { lte: shift.endTime } : {}),
+                },
+            },
+        });
+        const cashTxs = transactions.filter((t) => t.paymentMethod === 'CASH');
+        const nonCashTxs = transactions.filter((t) => t.paymentMethod !== 'CASH');
+        const totalCashSales = cashTxs.reduce((sum, t) => sum + Number(t.totalAmount), 0);
+        const totalNonCashSales = nonCashTxs.reduce((sum, t) => sum + Number(t.totalAmount), 0);
+        const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+        const transactionCount = transactions.length;
+        const expectedEndingCash = Number(shift.startingCash) + totalCashSales - totalExpenses;
+        return {
+            startingCash: Number(shift.startingCash),
+            totalCashSales,
+            totalNonCashSales,
+            totalExpenses,
+            transactionCount,
+            expectedEndingCash,
+            expenseDetails: expenses,
+        };
+    }
     async update(user, id, updateShiftDto) {
         const existingShift = await this.prisma.shift.findUnique({ where: { id } });
         if (!existingShift) {
             throw new common_1.BadRequestException('Shift not found');
         }
         this.assertShiftAccess(user, existingShift.userId, existingShift.outletId);
+        if (updateShiftDto.status === 'CLOSED') {
+            const shiftWithEndTime = {
+                ...existingShift,
+                endTime: new Date(),
+            };
+            const summary = await this.computeShiftSummary(shiftWithEndTime);
+            const actualEndingCash = updateShiftDto.actualEndingCash !== undefined
+                ? updateShiftDto.actualEndingCash
+                : undefined;
+            const cashDifference = actualEndingCash !== undefined
+                ? actualEndingCash - summary.expectedEndingCash
+                : undefined;
+            return this.prisma.shift.update({
+                where: { id },
+                data: {
+                    status: 'CLOSED',
+                    endTime: new Date(),
+                    actualEndingCash: actualEndingCash,
+                    expectedEndingCash: summary.expectedEndingCash,
+                    cashDifference: cashDifference,
+                    totalCashSales: summary.totalCashSales,
+                    totalNonCashSales: summary.totalNonCashSales,
+                    totalExpenses: summary.totalExpenses,
+                    transactionCount: summary.transactionCount,
+                    notes: updateShiftDto.notes ?? undefined,
+                },
+            });
+        }
         return this.prisma.shift.update({
             where: { id },
             data: {
-                ...updateShiftDto,
-                endTime: updateShiftDto.status === 'CLOSED' ? new Date() : undefined,
+                actualEndingCash: updateShiftDto.actualEndingCash,
+                notes: updateShiftDto.notes,
             },
         });
     }

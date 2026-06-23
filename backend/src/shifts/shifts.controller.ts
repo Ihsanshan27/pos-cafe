@@ -35,6 +35,13 @@ export class ShiftsController {
 
   @UseGuards(RolesGuard)
   @Roles(Role.OWNER, Role.MANAGER, Role.CASHIER, Role.BARISTA)
+  @Get(':id/summary')
+  getShiftSummary(@Request() req, @Param('id') id: string) {
+    return this.shiftsService.getShiftSummary(req.user, id);
+  }
+
+  @UseGuards(RolesGuard)
+  @Roles(Role.OWNER, Role.MANAGER, Role.CASHIER, Role.BARISTA)
   @Get(':id')
   findOne(@Request() req, @Param('id') id: string) {
     return this.shiftsService.findOne(req.user, id);

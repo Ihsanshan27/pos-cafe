@@ -34,8 +34,8 @@ let TransactionsController = class TransactionsController {
     findOne(req, id) {
         return this.transactionsService.findOne(req.user, id);
     }
-    voidTransaction(id) {
-        return this.transactionsService.voidTransaction(id);
+    voidTransaction(req, id) {
+        return this.transactionsService.voidTransaction(req.user, id, req.ip);
     }
     updateKitchenStatus(req, id, status) {
         return this.transactionsService.updateKitchenStatus(req.user, id, status);
@@ -76,9 +76,10 @@ __decorate([
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER),
     (0, common_1.Patch)(':id/void'),
-    __param(0, (0, common_1.Param)('id')),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('id')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], TransactionsController.prototype, "voidTransaction", null);
 __decorate([

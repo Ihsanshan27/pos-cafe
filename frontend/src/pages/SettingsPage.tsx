@@ -59,6 +59,7 @@ type SettingsForm = {
   forcePasswordChange: boolean;
   disabledFeatures: FeatureKey[];
   logRetentionDays: number;
+  auditLogRetentionDays: number;
   appVersion: string;
 };
 
@@ -102,6 +103,7 @@ const DEFAULT_FORM: SettingsForm = {
   forcePasswordChange: false,
   disabledFeatures: [],
   logRetentionDays: 30,
+  auditLogRetentionDays: 30,
   appVersion: '',
 };
 
@@ -235,6 +237,11 @@ export default function SettingsPage() {
     queryFn: () => settingsApi.getSystemInfo(),
   });
 
+  const { data: auditLogs = [], isLoading: isAuditLogsLoading, refetch: refetchAuditLogs } = useQuery({
+    queryKey: ['audit-logs'],
+    queryFn: () => settingsApi.getAuditLogs(),
+  });
+
   const initialForm = useMemo<SettingsForm>(() => {
     const map = new Map(settings.map((setting) => [setting.key, setting.value]));
     const parsedTaxRate = Number(map.get('TAX_RATE') ?? DEFAULT_FORM.taxRate);
@@ -243,6 +250,7 @@ export default function SettingsPage() {
     const parsedKdsDoneHide = Number(map.get('KDS_DONE_HIDE_MINUTES') ?? DEFAULT_FORM.kdsDoneHideMinutes);
     const parsedSessionTimeout = Number(map.get('SESSION_TIMEOUT_MINUTES') ?? DEFAULT_FORM.sessionTimeoutMinutes);
     const parsedLogRetention = Number(map.get('LOG_RETENTION_DAYS') ?? DEFAULT_FORM.logRetentionDays);
+    const parsedAuditLogRetention = Number(map.get('AUDIT_LOG_RETENTION_DAYS') ?? DEFAULT_FORM.auditLogRetentionDays);
     const parsedLowStockThreshold = Number(map.get('LOW_STOCK_THRESHOLD') ?? DEFAULT_FORM.lowStockThreshold);
     const parsedPointsPerSpend = Number(map.get('POINTS_PER_SPEND') ?? DEFAULT_FORM.pointsPerSpend);
     const parsedSilverMinPoints = Number(map.get('SILVER_MIN_POINTS') ?? DEFAULT_FORM.silverMinPoints);
@@ -313,6 +321,7 @@ export default function SettingsPage() {
       forcePasswordChange: (map.get('FORCE_PASSWORD_CHANGE') ?? 'false') === 'true',
       disabledFeatures,
       logRetentionDays: Number.isFinite(parsedLogRetention) && parsedLogRetention >= 0 ? parsedLogRetention : DEFAULT_FORM.logRetentionDays,
+      auditLogRetentionDays: Number.isFinite(parsedAuditLogRetention) && parsedAuditLogRetention >= 0 ? parsedAuditLogRetention : DEFAULT_FORM.auditLogRetentionDays,
       appVersion: map.get('APP_VERSION') ?? systemInfo?.backendVersion ?? DEFAULT_FORM.appVersion,
     };
   }, [settings, systemInfo?.backendVersion]);
@@ -384,6 +393,7 @@ export default function SettingsPage() {
         FORCE_PASSWORD_CHANGE: form.forcePasswordChange ? 'true' : 'false',
         DISABLED_FEATURES: stringifyJsonArray(form.disabledFeatures),
         LOG_RETENTION_DAYS: String(form.logRetentionDays),
+        AUDIT_LOG_RETENTION_DAYS: String(form.auditLogRetentionDays),
         APP_VERSION: form.appVersion.trim(),
       });
     },
@@ -439,8 +449,9 @@ export default function SettingsPage() {
 
   const applyLogRetentionMut = useMutation({
     mutationFn: () => settingsApi.applyLogRetention(),
-    onSuccess: ({ deletedCount }) => {
-      showToast(`Retensi log diterapkan. ${deletedCount} log lama dihapus.`);
+    onSuccess: (data: any) => {
+      showToast(`Retensi log diterapkan. ${data.deletedCount} log inventory lama dan ${data.deletedAuditCount || 0} log audit lama dihapus.`);
+      refetchAuditLogs();
     },
     onError: () => showToast('Gagal menerapkan retensi log.', 'error'),
   });
@@ -853,6 +864,14 @@ export default function SettingsPage() {
               </small>
             </div>
 
+            <div className="form-group" style={{ marginBottom: 0 }}>
+              <label>Audit Log Retention (hari)</label>
+              <input type="number" min="0" value={form.auditLogRetentionDays} onChange={(e) => updateForm('auditLogRetentionDays', Number(e.target.value))} />
+              <small style={{ color: 'var(--text-muted)' }}>
+                Batas hari penyimpanan untuk riwayat aktivitas administratif pada tabel Audit Log.
+              </small>
+            </div>
+
             <div style={{ display: 'grid', gap: '0.75rem' }}>
               <button className="btn btn-secondary" onClick={() => exportBackupMut.mutate()} disabled={actionBusy}>
                 <Archive size={16} /> Export Backup JSON
@@ -920,6 +939,75 @@ export default function SettingsPage() {
               {uploadLogoMut.isPending ? 'Uploading logo...' : saveMut.isPending ? 'Menyimpan...' : 'Simpan Settings'}
             </button>
           </div>
+        </div>
+
+        <div className="card" style={{ marginTop: '1.5rem', overflow: 'hidden' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <ShieldCheck size={18} color="var(--accent)" /> Audit Trail (Log Aktivitas Admin)
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', margin: 0 }}>
+                Menampilkan 200 aktivitas administratif terbaru yang direkam oleh sistem.
+              </p>
+            </div>
+            <button className="btn btn-secondary btn-sm" onClick={() => refetchAuditLogs()} disabled={isAuditLogsLoading}>
+              {isAuditLogsLoading ? 'Refreshing...' : 'Refresh Logs'}
+            </button>
+          </div>
+
+          {isAuditLogsLoading ? (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading audit trail...</div>
+          ) : auditLogs.length === 0 ? (
+            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Belum ada log aktivitas administratif yang tercatat.</div>
+          ) : (
+            <div style={{ overflowX: 'auto' }}>
+              <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                <thead>
+                  <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--border)' }}>
+                    <th style={{ padding: '0.75rem' }}>Waktu</th>
+                    <th style={{ padding: '0.75rem' }}>Pengguna</th>
+                    <th style={{ padding: '0.75rem' }}>Aksi</th>
+                    <th style={{ padding: '0.75rem' }}>Target</th>
+                    <th style={{ padding: '0.75rem' }}>Detail</th>
+                    <th style={{ padding: '0.75rem' }}>IP Address</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLogs.map((log: any) => {
+                    let actionBadgeClass = 'badge-secondary';
+                    if (log.action === 'UPDATE_MENU' || log.action === 'OVERRIDE_MENU_BRANCH') {
+                      actionBadgeClass = 'badge-primary';
+                    } else if (log.action === 'DELETE_MENU' || log.action === 'DELETE_MENU_BRANCH_OVERRIDE') {
+                      actionBadgeClass = 'badge-danger';
+                    } else if (log.action === 'VOID_TRANSACTION') {
+                      actionBadgeClass = 'badge-warning';
+                    } else if (log.action === 'UPDATE_SETTINGS') {
+                      actionBadgeClass = 'badge-info';
+                    } else if (log.action === 'RESTORE_BACKUP' || log.action === 'RESET_DEMO_DATA') {
+                      actionBadgeClass = 'badge-success';
+                    }
+
+                    return (
+                      <tr key={log.id} style={{ borderBottom: '1px solid var(--border)' }}>
+                        <td style={{ padding: '0.75rem', whiteSpace: 'nowrap' }}>{new Date(log.createdAt).toLocaleString('id-ID')}</td>
+                        <td style={{ padding: '0.75rem' }}>
+                          <div style={{ fontWeight: 600 }}>{log.userName || 'System'}</div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{log.userEmail || '-'}</div>
+                        </td>
+                        <td style={{ padding: '0.75rem', whiteSpace: 'nowrap' }}>
+                          <span className={`badge ${actionBadgeClass}`}>{log.action}</span>
+                        </td>
+                        <td style={{ padding: '0.75rem', fontWeight: 500 }}>{log.target}</td>
+                        <td style={{ padding: '0.75rem', color: 'var(--text-secondary)' }}>{log.details || '-'}</td>
+                        <td style={{ padding: '0.75rem', fontFamily: 'monospace' }}>{log.ipAddress || '-'}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 

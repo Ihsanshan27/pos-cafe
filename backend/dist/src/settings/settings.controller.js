@@ -38,8 +38,8 @@ let SettingsController = class SettingsController {
         await this.settingsService.setSetting('ALLOW_REGISTRATION', allowed ? 'true' : 'false');
         return { allowed };
     }
-    async setManySettings(settings) {
-        return this.settingsService.setManySettings(settings ?? {});
+    async setManySettings(req, settings) {
+        return this.settingsService.setManySettings(settings ?? {}, req.user, req.ip);
     }
     async uploadLogo(file) {
         if (!file) {
@@ -61,17 +61,20 @@ let SettingsController = class SettingsController {
     async exportBackup() {
         return this.settingsService.exportBackup();
     }
-    async restoreBackup(backup) {
+    async restoreBackup(req, backup) {
         if (!backup?.data) {
             throw new common_1.BadRequestException('Backup payload is required');
         }
-        return this.settingsService.restoreBackup(backup);
+        return this.settingsService.restoreBackup(backup, req.user, req.ip);
     }
     async applyLogRetention() {
         return this.settingsService.applyLogRetention();
     }
-    async resetDemoData() {
-        return this.settingsService.resetDemoData();
+    async resetDemoData(req) {
+        return this.settingsService.resetDemoData(req.user, req.ip);
+    }
+    async getAuditLogs() {
+        return this.settingsService.getAuditLogs();
     }
     async getGenericSetting(key) {
         const setting = await this.settingsService.getSetting(key);
@@ -109,9 +112,10 @@ __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)(client_1.Role.OWNER),
     (0, common_1.Patch)(),
-    __param(0, (0, common_1.Body)('settings')),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Body)('settings')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], SettingsController.prototype, "setManySettings", null);
 __decorate([
@@ -155,9 +159,10 @@ __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)(client_1.Role.OWNER),
     (0, common_1.Post)('restore-backup'),
-    __param(0, (0, common_1.Body)('backup')),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Body)('backup')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [Object]),
+    __metadata("design:paramtypes", [Object, Object]),
     __metadata("design:returntype", Promise)
 ], SettingsController.prototype, "restoreBackup", null);
 __decorate([
@@ -172,10 +177,19 @@ __decorate([
     (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)(client_1.Role.OWNER),
     (0, common_1.Post)('reset-demo-data'),
+    __param(0, (0, common_1.Request)()),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object]),
+    __metadata("design:returntype", Promise)
+], SettingsController.prototype, "resetDemoData", null);
+__decorate([
+    (0, common_1.UseGuards)(jwt_auth_guard_1.JwtAuthGuard, roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER),
+    (0, common_1.Get)('audit-logs'),
     __metadata("design:type", Function),
     __metadata("design:paramtypes", []),
     __metadata("design:returntype", Promise)
-], SettingsController.prototype, "resetDemoData", null);
+], SettingsController.prototype, "getAuditLogs", null);
 __decorate([
     (0, common_1.Get)(':key'),
     __param(0, (0, common_1.Param)('key')),

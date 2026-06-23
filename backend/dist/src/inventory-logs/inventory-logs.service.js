@@ -30,7 +30,17 @@ let InventoryLogsService = class InventoryLogsService {
         const ingredient = await this.prisma.ingredient.findUnique({ where: { id: data.ingredientId } });
         if (!ingredient)
             throw new common_1.BadRequestException('Ingredient not found');
-        let newStock = Number(ingredient.stockQuantity);
+        const outletIngredient = data.outletId
+            ? await this.prisma.outletIngredient.findUnique({
+                where: {
+                    outletId_ingredientId: {
+                        outletId: data.outletId,
+                        ingredientId: data.ingredientId,
+                    },
+                },
+            })
+            : null;
+        let newStock = Number(outletIngredient?.stockQuantity ?? 0);
         if (data.type === 'IN') {
             newStock += data.quantity;
         }
@@ -46,13 +56,26 @@ let InventoryLogsService = class InventoryLogsService {
         if (newStock < 0) {
             throw new common_1.BadRequestException(`Stock for ${ingredient.name} cannot be negative`);
         }
-        await this.prisma.ingredient.update({
-            where: { id: data.ingredientId },
-            data: { stockQuantity: newStock }
-        });
+        if (data.outletId) {
+            await this.prisma.outletIngredient.upsert({
+                where: {
+                    outletId_ingredientId: {
+                        outletId: data.outletId,
+                        ingredientId: data.ingredientId,
+                    },
+                },
+                update: { stockQuantity: newStock },
+                create: {
+                    outletId: data.outletId,
+                    ingredientId: data.ingredientId,
+                    stockQuantity: newStock,
+                },
+            });
+        }
         return this.prisma.inventoryLog.create({
             data: {
                 ingredientId: data.ingredientId,
+                outletId: data.outletId,
                 type: data.type,
                 quantity: data.quantity,
                 notes: normalizedNotes,
@@ -60,8 +83,9 @@ let InventoryLogsService = class InventoryLogsService {
             }
         });
     }
-    findAll() {
+    findAll(outletId) {
         return this.prisma.inventoryLog.findMany({
+            where: outletId ? { outletId } : undefined,
             include: { ingredient: true },
             orderBy: { createdAt: 'desc' },
         }).then(async (logs) => {

@@ -35,6 +35,9 @@ let ShiftsController = class ShiftsController {
     findActive(req, outletId) {
         return this.shiftsService.findActive(req.user, outletId);
     }
+    getShiftSummary(req, id) {
+        return this.shiftsService.getShiftSummary(req.user, id);
+    }
     findOne(req, id) {
         return this.shiftsService.findOne(req.user, id);
     }
@@ -73,6 +76,16 @@ __decorate([
     __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], ShiftsController.prototype, "findActive", null);
+__decorate([
+    (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER, client_1.Role.CASHIER, client_1.Role.BARISTA),
+    (0, common_1.Get)(':id/summary'),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
+    __metadata("design:returntype", void 0)
+], ShiftsController.prototype, "getShiftSummary", null);
 __decorate([
     (0, common_1.UseGuards)(roles_guard_1.RolesGuard),
     (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER, client_1.Role.CASHIER, client_1.Role.BARISTA),

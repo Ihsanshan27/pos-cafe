@@ -36,18 +36,10 @@ export function resolveMediaUrl(path?: string) {
 
 const api = axios.create({
   baseURL,
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
-});
-
-// Automatically attach JWT token to every request
-api.interceptors.request.use((config) => {
-  const token = getStoredAccessToken();
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
-  }
-  return config;
 });
 
 // Redirect to login on 401
@@ -116,6 +108,14 @@ export interface Menu {
   ingredients: RecipeItem[];
   createdAt: string;
   updatedAt: string;
+  isActive?: boolean;
+  outletMenus?: Array<{
+    id: string;
+    outletId: string;
+    menuId: string;
+    sellingPrice: number;
+    isActive: boolean;
+  }>;
 }
 
 export interface TransactionItem {
@@ -179,6 +179,7 @@ export interface PurchaseOrder {
 export interface InventoryLog {
   id: string;
   ingredientId: string;
+  outletId?: string;
   type: 'IN' | 'OUT' | 'SALE' | 'VOID' | 'ADJUSTMENT';
   quantity: number;
   notes?: string;
@@ -221,11 +222,11 @@ export interface Transaction {
 // ── Ingredient API ─────────────────────────────────────────────────────────
 
 export const ingredientApi = {
-  getAll: () => api.get<Ingredient[]>('/ingredients').then((r) => r.data),
-  getOne: (id: string) => api.get<Ingredient>(`/ingredients/${id}`).then((r) => r.data),
-  create: (data: Omit<Ingredient, 'id' | 'createdAt' | 'updatedAt' | 'recipes'>) =>
+  getAll: (outletId?: string) => api.get<Ingredient[]>('/ingredients', { params: outletId ? { outletId } : undefined }).then((r) => r.data),
+  getOne: (id: string, outletId?: string) => api.get<Ingredient>(`/ingredients/${id}`, { params: outletId ? { outletId } : undefined }).then((r) => r.data),
+  create: (data: Omit<Ingredient, 'id' | 'createdAt' | 'updatedAt'> & { outletId?: string }) =>
     api.post<Ingredient>('/ingredients', data).then((r) => r.data),
-  update: (id: string, data: Partial<Ingredient>) =>
+  update: (id: string, data: Partial<Ingredient> & { outletId?: string }) =>
     api.patch<Ingredient>(`/ingredients/${id}`, data).then((r) => r.data),
   delete: (id: string) => api.delete(`/ingredients/${id}`).then((r) => r.data),
 };
@@ -241,8 +242,8 @@ export interface CreateMenuPayload {
 }
 
 export const menuApi = {
-  getAll: () => api.get<Menu[]>('/menus').then((r) => r.data),
-  getOne: (id: string) => api.get<Menu>(`/menus/${id}`).then((r) => r.data),
+  getAll: (outletId?: string) => api.get<Menu[]>('/menus', { params: outletId ? { outletId } : undefined }).then((r) => r.data),
+  getOne: (id: string, outletId?: string) => api.get<Menu>(`/menus/${id}`, { params: outletId ? { outletId } : undefined }).then((r) => r.data),
   uploadImage: (file: File) => {
     const formData = new FormData();
     formData.append('image', file);
@@ -256,6 +257,10 @@ export const menuApi = {
   update: (id: string, data: Partial<CreateMenuPayload>) =>
     api.patch<Menu>(`/menus/${id}`, data).then((r) => r.data),
   delete: (id: string) => api.delete(`/menus/${id}`).then((r) => r.data),
+  upsertOutletOverride: (menuId: string, data: { outletId: string; sellingPrice: number; isActive: boolean }) =>
+    api.patch<any>(`/menus/${menuId}/outlet-override`, data).then((r) => r.data),
+  deleteOutletOverride: (menuId: string, outletId: string) =>
+    api.delete<any>(`/menus/${menuId}/outlet-override/${outletId}`).then((r) => r.data),
 };
 
 // ── Transaction API ────────────────────────────────────────────────────────
@@ -331,6 +336,7 @@ export const authApi = {
     api.post<AuthUser>('/auth/register', data).then((r) => r.data),
   login: (data: { email: string; password: string }) =>
     api.post<LoginResponse>('/auth/login', data).then((r) => r.data),
+  logout: () => api.post('/auth/logout').then((r) => r.data),
   me: () => api.get<AuthUser>('/auth/me').then((r) => r.data),
   updateProfile: (data: { name?: string; email?: string; password?: string }) => 
     api.patch<AuthUser>('/auth/me', data).then((r) => r.data),
@@ -365,6 +371,16 @@ export const discountApi = {
   delete: (id: string) => api.delete(`/discounts/${id}`).then((r) => r.data),
 };
 
+export interface ShiftSummary {
+  startingCash: number;
+  totalCashSales: number;
+  totalNonCashSales: number;
+  totalExpenses: number;
+  transactionCount: number;
+  expectedEndingCash: number;
+  expenseDetails: Expense[];
+}
+
 export interface Shift {
   id: string;
   userId: string;
@@ -375,6 +391,13 @@ export interface Shift {
   endTime?: string;
   startingCash: number;
   actualEndingCash?: number;
+  expectedEndingCash?: number;
+  cashDifference?: number;
+  totalCashSales?: number;
+  totalNonCashSales?: number;
+  totalExpenses?: number;
+  transactionCount?: number;
+  notes?: string;
   status: 'OPEN' | 'CLOSED';
 }
 
@@ -382,12 +405,25 @@ export const shiftApi = {
   getAll: () => api.get<Shift[]>('/shifts').then((r) => r.data),
   getActive: (outletId?: string) => api.get<Shift>('/shifts/active', { params: outletId ? { outletId } : undefined }).then((r) => r.data),
   create: (data: { startingCash: number; outletId?: string }) => api.post<Shift>('/shifts', data).then((r) => r.data),
-  update: (id: string, data: Partial<Shift>) => api.patch<Shift>(`/shifts/${id}`, data).then((r) => r.data),
+  update: (id: string, data: { actualEndingCash?: number; status?: 'OPEN' | 'CLOSED'; notes?: string }) => api.patch<Shift>(`/shifts/${id}`, data).then((r) => r.data),
+  getSummary: (id: string) => api.get<ShiftSummary>(`/shifts/${id}/summary`).then((r) => r.data),
 };
 
 export interface AppSetting {
   key: string;
   value: string;
+}
+
+export interface AuditLog {
+  id: string;
+  userId?: string | null;
+  userEmail?: string | null;
+  userName?: string | null;
+  action: string;
+  target: string;
+  details?: string | null;
+  ipAddress?: string | null;
+  createdAt: string;
 }
 
 export interface SystemInfoResponse {
@@ -428,6 +464,7 @@ export const settingsApi = {
   setAllowRegistration: (allowed: boolean) => api.patch<{ allowed: boolean }>('/settings/allow-registration', { allowed }).then((r) => r.data),
   getSetting: (key: string) => api.get<{ key: string; value: string | null }>(`/settings/${key}`).then((r) => r.data),
   setSetting: (key: string, value: string) => api.patch<{ key: string; value: string }>(`/settings/${key}`, { value }).then((r) => r.data),
+  getAuditLogs: () => api.get<AuditLog[]>('/settings/audit-logs').then((r) => r.data),
 };
 
 export const customerApi = {
@@ -438,8 +475,8 @@ export const customerApi = {
 };
 
 export const inventoryLogApi = {
-  getAll: () => api.get<InventoryLog[]>('/inventory-logs').then((r) => r.data),
-  create: (data: { ingredientId: string; type: string; quantity: number; notes?: string }) => api.post<InventoryLog>('/inventory-logs', data).then((r) => r.data),
+  getAll: (outletId?: string) => api.get<InventoryLog[]>('/inventory-logs', { params: outletId ? { outletId } : undefined }).then((r) => r.data),
+  create: (data: { ingredientId: string; type: string; quantity: number; notes?: string; outletId?: string }) => api.post<InventoryLog>('/inventory-logs', data).then((r) => r.data),
 };
 
 export const outletApi = {

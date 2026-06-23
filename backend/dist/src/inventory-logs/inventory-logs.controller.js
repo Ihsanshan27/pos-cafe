@@ -25,13 +25,16 @@ let InventoryLogsController = class InventoryLogsController {
         this.inventoryLogsService = inventoryLogsService;
     }
     create(data, req) {
+        const resolvedOutletId = req.user.role === client_1.Role.OWNER ? data.outletId : (req.user.outletId || data.outletId);
         return this.inventoryLogsService.create({
             ...data,
+            outletId: resolvedOutletId,
             createdBy: req.user.name || req.user.id,
         });
     }
-    findAll() {
-        return this.inventoryLogsService.findAll();
+    findAll(req, outletId) {
+        const resolvedOutletId = req.user.role === client_1.Role.OWNER ? outletId : (req.user.outletId || outletId);
+        return this.inventoryLogsService.findAll(resolvedOutletId);
     }
 };
 exports.InventoryLogsController = InventoryLogsController;
@@ -47,8 +50,10 @@ __decorate([
 __decorate([
     (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER),
     (0, common_1.Get)(),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Query)('outletId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], InventoryLogsController.prototype, "findAll", null);
 exports.InventoryLogsController = InventoryLogsController = __decorate([

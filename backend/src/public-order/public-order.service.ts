@@ -22,11 +22,26 @@ export class PublicOrderService {
               ingredient: true,
             },
           },
+          outletMenus: {
+            where: { outletId: outlet.id },
+          },
         },
         orderBy: { name: 'asc' },
       }),
       this.prisma.category.findMany({ orderBy: { name: 'asc' } }),
     ]);
+
+    const mappedMenus = menus
+      .map((menu) => {
+        const { outletMenus, ...menuData } = menu;
+        const override = outletMenus[0];
+        return {
+          ...menuData,
+          sellingPrice: override ? override.sellingPrice : menu.sellingPrice,
+          isActive: override ? override.isActive : true,
+        };
+      })
+      .filter((menu) => menu.isActive);
 
     return {
       outlet: {
@@ -38,7 +53,7 @@ export class PublicOrderService {
       },
       table: outlet.tableQRCodes[0],
       categories,
-      menus,
+      menus: mappedMenus,
     };
   }
 

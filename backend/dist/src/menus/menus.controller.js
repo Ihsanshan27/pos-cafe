@@ -21,6 +21,7 @@ const client_1 = require("@prisma/client");
 const menus_service_1 = require("./menus.service");
 const create_menu_dto_1 = require("./dto/create-menu.dto");
 const update_menu_dto_1 = require("./dto/update-menu.dto");
+const outlet_menu_dto_1 = require("./dto/outlet-menu.dto");
 const platform_express_1 = require("@nestjs/platform-express");
 const multer_1 = require("multer");
 const image_upload_util_1 = require("../common/image-upload.util");
@@ -44,17 +45,23 @@ let MenusController = class MenusController {
     create(createMenuDto) {
         return this.menusService.create(createMenuDto);
     }
-    findAll() {
-        return this.menusService.findAll();
+    findAll(outletId) {
+        return this.menusService.findAll(outletId);
     }
-    findOne(id) {
-        return this.menusService.findOne(id);
+    findOne(id, outletId) {
+        return this.menusService.findOne(id, outletId);
     }
-    update(id, updateMenuDto) {
-        return this.menusService.update(id, updateMenuDto);
+    update(req, id, updateMenuDto) {
+        return this.menusService.update(id, updateMenuDto, req.user, req.ip);
     }
-    remove(id) {
-        return this.menusService.remove(id);
+    upsertOutletOverride(req, id, updateOutletMenuDto) {
+        return this.menusService.upsertOutletOverride(id, updateOutletMenuDto, req.user, req.ip);
+    }
+    deleteOutletOverride(req, id, outletId) {
+        return this.menusService.deleteOutletOverride(id, outletId, req.user, req.ip);
+    }
+    remove(req, id) {
+        return this.menusService.remove(id, req.user, req.ip);
     }
 };
 exports.MenusController = MenusController;
@@ -88,32 +95,56 @@ __decorate([
 ], MenusController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
+    __param(0, (0, common_1.Query)('outletId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], MenusController.prototype, "findAll", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Query)('outletId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], MenusController.prototype, "findOne", null);
 __decorate([
     (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER),
     (0, common_1.Patch)(':id'),
-    __param(0, (0, common_1.Param)('id')),
-    __param(1, (0, common_1.Body)()),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String, update_menu_dto_1.UpdateMenuDto]),
+    __metadata("design:paramtypes", [Object, String, update_menu_dto_1.UpdateMenuDto]),
     __metadata("design:returntype", void 0)
 ], MenusController.prototype, "update", null);
 __decorate([
     (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER),
-    (0, common_1.Delete)(':id'),
-    __param(0, (0, common_1.Param)('id')),
+    (0, common_1.Patch)(':id/outlet-override'),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Body)()),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [Object, String, outlet_menu_dto_1.UpdateOutletMenuDto]),
+    __metadata("design:returntype", void 0)
+], MenusController.prototype, "upsertOutletOverride", null);
+__decorate([
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER),
+    (0, common_1.Delete)(':id/outlet-override/:outletId'),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('id')),
+    __param(2, (0, common_1.Param)('outletId')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String, String]),
+    __metadata("design:returntype", void 0)
+], MenusController.prototype, "deleteOutletOverride", null);
+__decorate([
+    (0, roles_decorator_1.Roles)(client_1.Role.OWNER, client_1.Role.MANAGER),
+    (0, common_1.Delete)(':id'),
+    __param(0, (0, common_1.Request)()),
+    __param(1, (0, common_1.Param)('id')),
+    __metadata("design:type", Function),
+    __metadata("design:paramtypes", [Object, String]),
     __metadata("design:returntype", void 0)
 ], MenusController.prototype, "remove", null);
 exports.MenusController = MenusController = __decorate([

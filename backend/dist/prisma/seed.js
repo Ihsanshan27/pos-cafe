@@ -56,24 +56,44 @@ async function main() {
     await prisma.tableQRCode.deleteMany();
     await prisma.expense.deleteMany();
     await prisma.shift.deleteMany();
+    await prisma.outletIngredient.deleteMany();
     await prisma.ingredient.deleteMany();
+    await prisma.outlet.deleteMany();
     await prisma.customer.deleteMany();
+    console.log('Creating Outlets...');
+    const outletMain = await prisma.outlet.create({
+        data: {
+            name: 'SHN Coffee HQ',
+            slug: 'shn-coffee-hq',
+            address: 'Jl. Sudirman No. 123, Jakarta',
+            phone: '021-5551234',
+        },
+    });
     console.log('Creating Categories...');
     const catCoffee = await prisma.category.create({ data: { name: 'Coffee' } });
     const catTea = await prisma.category.create({ data: { name: 'Tea' } });
     const catFood = await prisma.category.create({ data: { name: 'Food' } });
     console.log('Creating Ingredients...');
     const ingCoffeeBean = await prisma.ingredient.create({
-        data: { name: 'Coffee Beans', unit: 'gram', costPerUnit: 200, stockQuantity: 5000 },
+        data: { name: 'Coffee Beans', unit: 'gram', costPerUnit: 200 },
     });
     const ingMilk = await prisma.ingredient.create({
-        data: { name: 'Fresh Milk', unit: 'ml', costPerUnit: 15, stockQuantity: 10000 },
+        data: { name: 'Fresh Milk', unit: 'ml', costPerUnit: 15 },
     });
     const ingSugar = await prisma.ingredient.create({
-        data: { name: 'Liquid Sugar', unit: 'ml', costPerUnit: 10, stockQuantity: 2000 },
+        data: { name: 'Liquid Sugar', unit: 'ml', costPerUnit: 10 },
     });
     const ingTeaLeaf = await prisma.ingredient.create({
-        data: { name: 'Jasmine Tea', unit: 'gram', costPerUnit: 150, stockQuantity: 1000 },
+        data: { name: 'Jasmine Tea', unit: 'gram', costPerUnit: 150 },
+    });
+    console.log('Creating OutletIngredients...');
+    await prisma.outletIngredient.createMany({
+        data: [
+            { outletId: outletMain.id, ingredientId: ingCoffeeBean.id, stockQuantity: 5000 },
+            { outletId: outletMain.id, ingredientId: ingMilk.id, stockQuantity: 10000 },
+            { outletId: outletMain.id, ingredientId: ingSugar.id, stockQuantity: 2000 },
+            { outletId: outletMain.id, ingredientId: ingTeaLeaf.id, stockQuantity: 1000 },
+        ]
     });
     console.log('Creating Menus...');
     await prisma.menu.create({

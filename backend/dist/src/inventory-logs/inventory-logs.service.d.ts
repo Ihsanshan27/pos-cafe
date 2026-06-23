@@ -11,32 +11,34 @@ export declare class InventoryLogsService {
         quantity: number;
         notes?: string;
         createdBy?: string;
+        outletId?: string;
     }): Promise<{
         id: string;
         createdAt: Date;
         quantity: number;
         ingredientId: string;
-        notes: string | null;
+        outletId: string | null;
         type: import("@prisma/client").$Enums.LogType;
+        notes: string | null;
         createdBy: string | null;
     }>;
-    findAll(): Promise<{
+    findAll(outletId?: string): Promise<{
         createdByName: string | null;
         ingredient: {
             id: string;
             name: string;
-            unit: string;
-            costPerUnit: import("@prisma/client-runtime-utils").Decimal;
-            stockQuantity: number;
             createdAt: Date;
             updatedAt: Date;
+            unit: string;
+            costPerUnit: import("@prisma/client-runtime-utils").Decimal;
         };
         id: string;
         createdAt: Date;
         quantity: number;
         ingredientId: string;
-        notes: string | null;
+        outletId: string | null;
         type: import("@prisma/client").$Enums.LogType;
+        notes: string | null;
         createdBy: string | null;
     }[]>;
 }

@@ -1,4 +1,5 @@
-import { Controller, Post, Body, Get, Patch, UseGuards, Request, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, Get, Patch, UseGuards, Request, BadRequestException, Res } from '@nestjs/common';
+import * as express from 'express';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/auth.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -25,8 +26,31 @@ export class AuthController {
 
   @UseGuards(LoginRateLimitGuard)
   @Post('login')
-  login(@Body() dto: LoginDto) {
-    return this.authService.login(dto);
+  async login(@Body() dto: LoginDto, @Res({ passthrough: true }) response: express.Response) {
+    const result = await this.authService.login(dto);
+    const timeoutSetting = await this.settingsService.getSetting('SESSION_TIMEOUT_MINUTES');
+    const timeoutMinutes = Number(timeoutSetting?.value ?? '120') || 120;
+    
+    response.cookie('access_token', result.accessToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+      maxAge: timeoutMinutes * 60 * 1000,
+    });
+
+    return result;
+  }
+
+  @Post('logout')
+  async logout(@Res({ passthrough: true }) response: express.Response) {
+    response.clearCookie('access_token', {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      path: '/',
+    });
+    return { success: true };
   }
 
   @UseGuards(JwtAuthGuard)

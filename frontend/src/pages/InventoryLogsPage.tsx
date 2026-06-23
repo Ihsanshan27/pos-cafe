@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inventoryLogApi, ingredientApi } from '../lib/api';
 import { Plus, Search, ClipboardList } from 'lucide-react';
 import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
+import { useActiveOutlet } from '../hooks/useActiveOutlet';
 
 function getLogTone(type: string, quantity: number) {
   const isPositive = type === 'IN' || type === 'VOID' || (type === 'ADJUSTMENT' && quantity > 0);
@@ -17,15 +18,27 @@ function getLogTone(type: string, quantity: number) {
 export default function InventoryLogsPage() {
   const qc = useQueryClient();
   const { requireAdjustmentNote } = useAppPublicSettings();
+  const { activeOutletId } = useActiveOutlet();
   const [search, setSearch] = useState('');
   const [isOpen, setIsOpen] = useState(false);
   const [form, setForm] = useState({ ingredientId: '', type: 'IN', quantity: '', notes: '' });
 
-  const { data: logs = [], isLoading } = useQuery({ queryKey: ['inventory-logs'], queryFn: inventoryLogApi.getAll });
-  const { data: ingredients = [] } = useQuery({ queryKey: ['ingredients'], queryFn: ingredientApi.getAll });
+  const { data: logs = [], isLoading } = useQuery({
+    queryKey: ['inventory-logs', activeOutletId],
+    queryFn: () => inventoryLogApi.getAll(activeOutletId),
+  });
+  const { data: ingredients = [] } = useQuery({
+    queryKey: ['ingredients', activeOutletId],
+    queryFn: () => ingredientApi.getAll(activeOutletId),
+  });
 
   const createMut = useMutation({
-    mutationFn: () => inventoryLogApi.create({ ...form, quantity: Number(form.quantity) }),
+    mutationFn: () =>
+      inventoryLogApi.create({
+        ...form,
+        quantity: Number(form.quantity),
+        outletId: activeOutletId || undefined,
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['inventory-logs'] });
       qc.invalidateQueries({ queryKey: ['ingredients'] });

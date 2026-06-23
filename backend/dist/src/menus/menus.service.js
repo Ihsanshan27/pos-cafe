@@ -12,10 +12,13 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.MenusService = void 0;
 const common_1 = require("@nestjs/common");
 const prisma_service_1 = require("../prisma/prisma.service");
+const settings_service_1 = require("../settings/settings.service");
 let MenusService = class MenusService {
     prisma;
-    constructor(prisma) {
+    settingsService;
+    constructor(prisma, settingsService) {
         this.prisma = prisma;
+        this.settingsService = settingsService;
     }
     async create(createMenuDto) {
         const { ingredients, ...menuData } = createMenuDto;
@@ -38,7 +41,7 @@ let MenusService = class MenusService {
             },
         });
     }
-    async findAll() {
+    async findAll(outletId) {
         const menus = await this.prisma.menu.findMany({
             include: {
                 category: true,
@@ -47,6 +50,7 @@ let MenusService = class MenusService {
                         ingredient: true,
                     },
                 },
+                outletMenus: outletId ? { where: { outletId } } : true,
             },
         });
         return menus.map((menu) => {
@@ -54,10 +58,18 @@ let MenusService = class MenusService {
                 const cost = Number(recipeItem.ingredient.costPerUnit) * recipeItem.quantity;
                 return total + cost;
             }, 0);
-            return { ...menu, hpp };
+            const { outletMenus, ...menuData } = menu;
+            const override = outletId ? outletMenus[0] : null;
+            return {
+                ...menuData,
+                hpp,
+                sellingPrice: override ? override.sellingPrice : menu.sellingPrice,
+                isActive: override ? override.isActive : true,
+                outletMenus,
+            };
         });
     }
-    async findOne(id) {
+    async findOne(id, outletId) {
         const menu = await this.prisma.menu.findUnique({
             where: { id },
             include: {
@@ -67,6 +79,7 @@ let MenusService = class MenusService {
                         ingredient: true,
                     },
                 },
+                outletMenus: outletId ? { where: { outletId } } : true,
             },
         });
         if (!menu)
@@ -75,11 +88,20 @@ let MenusService = class MenusService {
             const cost = Number(recipeItem.ingredient.costPerUnit) * recipeItem.quantity;
             return total + cost;
         }, 0);
-        return { ...menu, hpp };
+        const { outletMenus, ...menuData } = menu;
+        const override = outletId ? outletMenus[0] : null;
+        return {
+            ...menuData,
+            hpp,
+            sellingPrice: override ? override.sellingPrice : menu.sellingPrice,
+            isActive: override ? override.isActive : true,
+            outletMenus,
+        };
     }
-    async update(id, updateMenuDto) {
+    async update(id, updateMenuDto, user, ip) {
+        const oldMenu = await this.prisma.menu.findUnique({ where: { id } });
         const { ingredients, ...menuData } = updateMenuDto;
-        return this.prisma.$transaction(async (tx) => {
+        const result = await this.prisma.$transaction(async (tx) => {
             if (ingredients) {
                 await tx.recipeItem.deleteMany({
                     where: { menuId: id },
@@ -107,16 +129,97 @@ let MenusService = class MenusService {
                 },
             });
         });
+        if (user && oldMenu) {
+            const changes = [];
+            if (menuData.name && menuData.name !== oldMenu.name) {
+                changes.push(`Nama: "${oldMenu.name}" -> "${menuData.name}"`);
+            }
+            if (menuData.sellingPrice && Number(menuData.sellingPrice) !== Number(oldMenu.sellingPrice)) {
+                changes.push(`Harga Global: ${oldMenu.sellingPrice} -> ${menuData.sellingPrice}`);
+            }
+            await this.settingsService.logActivity(user, 'UPDATE_MENU', `Menu: ${result.name}`, changes.join(', ') || 'Update detail/resep menu', ip);
+        }
+        return result;
     }
-    remove(id) {
-        return this.prisma.menu.delete({
+    async upsertOutletOverride(menuId, dto, user, ip) {
+        const menu = await this.prisma.menu.findUnique({ where: { id: menuId } });
+        const oldOverride = await this.prisma.outletMenu.findUnique({
+            where: {
+                outletId_menuId: {
+                    outletId: dto.outletId,
+                    menuId,
+                },
+            },
+        });
+        const result = await this.prisma.outletMenu.upsert({
+            where: {
+                outletId_menuId: {
+                    outletId: dto.outletId,
+                    menuId,
+                },
+            },
+            update: {
+                sellingPrice: dto.sellingPrice,
+                isActive: dto.isActive,
+            },
+            create: {
+                outletId: dto.outletId,
+                menuId,
+                sellingPrice: dto.sellingPrice,
+                isActive: dto.isActive,
+            },
+        });
+        if (user && menu) {
+            let details = '';
+            if (oldOverride) {
+                const changes = [];
+                if (Number(oldOverride.sellingPrice) !== Number(dto.sellingPrice)) {
+                    changes.push(`Harga Cabang: ${oldOverride.sellingPrice} -> ${dto.sellingPrice}`);
+                }
+                if (oldOverride.isActive !== dto.isActive) {
+                    changes.push(`Status Aktif: ${oldOverride.isActive} -> ${dto.isActive}`);
+                }
+                details = changes.join(', ') || 'Update override cabang';
+            }
+            else {
+                details = `Tambah override cabang: Harga = ${dto.sellingPrice}, Aktif = ${dto.isActive}`;
+            }
+            const outlet = await this.prisma.outlet.findUnique({ where: { id: dto.outletId } });
+            await this.settingsService.logActivity(user, 'OVERRIDE_MENU_BRANCH', `Menu: ${menu.name} (Outlet: ${outlet?.name || dto.outletId})`, details, ip);
+        }
+        return result;
+    }
+    async deleteOutletOverride(menuId, outletId, user, ip) {
+        const menu = await this.prisma.menu.findUnique({ where: { id: menuId } });
+        const outlet = await this.prisma.outlet.findUnique({ where: { id: outletId } });
+        const result = await this.prisma.outletMenu.delete({
+            where: {
+                outletId_menuId: {
+                    outletId,
+                    menuId,
+                },
+            },
+        });
+        if (user && menu) {
+            await this.settingsService.logActivity(user, 'DELETE_MENU_BRANCH_OVERRIDE', `Menu: ${menu.name} (Outlet: ${outlet?.name || outletId})`, 'Override harga/status cabang dihapus (kembali ke default global)', ip);
+        }
+        return result;
+    }
+    async remove(id, user, ip) {
+        const menu = await this.prisma.menu.findUnique({ where: { id } });
+        const result = await this.prisma.menu.delete({
             where: { id },
         });
+        if (user && menu) {
+            await this.settingsService.logActivity(user, 'DELETE_MENU', `Menu: ${menu.name}`, `Menghapus menu dengan harga global ${menu.sellingPrice}`, ip);
+        }
+        return result;
     }
 };
 exports.MenusService = MenusService;
 exports.MenusService = MenusService = __decorate([
     (0, common_1.Injectable)(),
-    __metadata("design:paramtypes", [prisma_service_1.PrismaService])
+    __metadata("design:paramtypes", [prisma_service_1.PrismaService,
+        settings_service_1.SettingsService])
 ], MenusService);
 //# sourceMappingURL=menus.service.js.map

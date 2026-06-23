@@ -29,11 +29,11 @@ let IngredientsController = class IngredientsController {
     create(createIngredientDto) {
         return this.ingredientsService.create(createIngredientDto);
     }
-    findAll() {
-        return this.ingredientsService.findAll();
+    findAll(outletId) {
+        return this.ingredientsService.findAll(outletId);
     }
-    findOne(id) {
-        return this.ingredientsService.findOne(id);
+    findOne(id, outletId) {
+        return this.ingredientsService.findOne(id, outletId);
     }
     update(id, updateIngredientDto) {
         return this.ingredientsService.update(id, updateIngredientDto);
@@ -52,15 +52,17 @@ __decorate([
 ], IngredientsController.prototype, "create", null);
 __decorate([
     (0, common_1.Get)(),
+    __param(0, (0, common_1.Query)('outletId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", []),
+    __metadata("design:paramtypes", [String]),
     __metadata("design:returntype", void 0)
 ], IngredientsController.prototype, "findAll", null);
 __decorate([
     (0, common_1.Get)(':id'),
     __param(0, (0, common_1.Param)('id')),
+    __param(1, (0, common_1.Query)('outletId')),
     __metadata("design:type", Function),
-    __metadata("design:paramtypes", [String]),
+    __metadata("design:paramtypes", [String, String]),
     __metadata("design:returntype", void 0)
 ], IngredientsController.prototype, "findOne", null);
 __decorate([

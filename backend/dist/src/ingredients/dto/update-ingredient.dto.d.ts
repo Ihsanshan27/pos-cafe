@@ -3,4 +3,5 @@ export declare class UpdateIngredientDto {
     unit?: string;
     costPerUnit?: number;
     stockQuantity?: number;
+    outletId?: string;
 }

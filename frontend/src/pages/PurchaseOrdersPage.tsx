@@ -14,7 +14,7 @@ export default function PurchaseOrdersPage() {
   const [items, setItems] = useState([{ ingredientId: '', quantity: '1', unitCost: '0' }]);
 
   const { data: suppliers = [] } = useQuery({ queryKey: ['suppliers'], queryFn: supplierApi.getAll });
-  const { data: ingredients = [] } = useQuery({ queryKey: ['ingredients'], queryFn: ingredientApi.getAll });
+  const { data: ingredients = [] } = useQuery({ queryKey: ['ingredients'], queryFn: () => ingredientApi.getAll() });
   const { data: outlets = [] } = useQuery({ queryKey: ['outlets'], queryFn: outletApi.getAll });
   const { data: purchaseOrders = [], isLoading } = useQuery({
     queryKey: ['purchase-orders', activeOutletId],

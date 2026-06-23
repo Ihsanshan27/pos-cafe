@@ -1,9 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { transactionApi } from '../lib/api';
-import { CheckCircle, Clock, Play, Check } from 'lucide-react';
+import type { Transaction } from '../lib/api';
+import { CheckCircle, Clock, Play, Check, Wifi, WifiOff } from 'lucide-react';
 import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
 import { useActiveOutlet } from '../hooks/useActiveOutlet';
+import { io, Socket } from 'socket.io-client';
+
+const KDS_WS_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000');
 
 function playDing() {
   try {
@@ -34,11 +38,90 @@ export default function KitchenPage() {
   const { kdsSoundEnabled, kdsRefreshInterval, kdsDoneHideMinutes, kdsHighlightNotes } = useAppPublicSettings();
   const { activeOutletId } = useActiveOutlet();
 
-  const { data: transactions = [], isLoading } = useQuery({
-    queryKey: ['transactions', activeOutletId],
-    queryFn: () => transactionApi.getAll(activeOutletId || undefined),
-    refetchInterval: Math.max(3, kdsRefreshInterval) * 1000,
-  });
+  // Local transaction state managed via WebSocket events
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isConnected, setIsConnected] = useState(false);
+  const [isInitialLoading, setIsInitialLoading] = useState(true);
+  const socketRef = useRef<Socket | null>(null);
+  const prevPendingCount = useRef(0);
+
+  const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
+    setToast({ msg, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // Load initial data via REST then switch to WebSocket
+  const loadInitialData = useCallback(async () => {
+    try {
+      const data = await transactionApi.getAll(activeOutletId || undefined);
+      setTransactions(data);
+    } catch {
+      showToast('Gagal memuat data pesanan', 'error');
+    } finally {
+      setIsInitialLoading(false);
+    }
+  }, [activeOutletId]);
+
+  // Merge incoming transaction into state
+  const mergeTransaction = useCallback((tx: Transaction) => {
+    setTransactions((prev) => {
+      const existing = prev.findIndex((t) => t.id === tx.id);
+      if (existing !== -1) {
+        const next = [...prev];
+        next[existing] = tx;
+        return next;
+      }
+      return [tx, ...prev];
+    });
+  }, []);
+
+  // WebSocket connection management
+  useEffect(() => {
+    loadInitialData();
+
+    const socket = io(`${KDS_WS_URL}/kds`, {
+      path: '/socket.io',
+      transports: ['websocket', 'polling'],
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 5000,
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      setIsConnected(true);
+      // Join room based on active outlet
+      socket.emit('kds:join', { outletId: activeOutletId || undefined });
+    });
+
+    socket.on('disconnect', () => {
+      setIsConnected(false);
+    });
+
+    socket.on('order:new', (tx: Transaction) => {
+      mergeTransaction(tx);
+    });
+
+    socket.on('order:updated', (tx: Transaction) => {
+      mergeTransaction(tx);
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [activeOutletId, loadInitialData, mergeTransaction]);
+
+  // Fallback polling when WebSocket is disconnected
+  useEffect(() => {
+    if (isConnected) return; // WebSocket is live, no need to poll
+    const interval = setInterval(async () => {
+      try {
+        const data = await transactionApi.getAll(activeOutletId || undefined);
+        setTransactions(data);
+      } catch {}
+    }, Math.max(3, kdsRefreshInterval) * 1000);
+    return () => clearInterval(interval);
+  }, [isConnected, activeOutletId, kdsRefreshInterval]);
 
   // Filter completed payments, split by kitchen status
   const pendingOrders = transactions
@@ -49,7 +132,7 @@ export default function KitchenPage() {
     .filter(tx => (tx.status === 'COMPLETED' || tx.source === 'PUBLIC_QR') && tx.kitchenStatus === 'IN_PROGRESS')
     .sort((a, b) => String(a.createdAt).localeCompare(String(b.createdAt)));
 
-  // Show only last 20 done orders
+  // Show only last 20 done orders within kdsDoneHideMinutes
   const doneOrders = transactions
     .filter(tx => (tx.status === 'COMPLETED' || tx.source === 'PUBLIC_QR') && tx.kitchenStatus === 'DONE')
     .filter((tx) => {
@@ -60,27 +143,29 @@ export default function KitchenPage() {
     .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)))
     .slice(0, 20);
 
-  const prevCount = useRef(0);
-
+  // Sound notification for new pending orders
   useEffect(() => {
-    if (kdsSoundEnabled && pendingOrders.length > prevCount.current && pendingOrders.length > 0) {
+    if (kdsSoundEnabled && pendingOrders.length > prevPendingCount.current && pendingOrders.length > 0) {
       playDing();
     }
-    prevCount.current = pendingOrders.length;
+    prevPendingCount.current = pendingOrders.length;
   }, [kdsSoundEnabled, pendingOrders.length]);
 
   const updateStatusMut = useMutation({
-    mutationFn: ({ id, status }: { id: string; status: 'PENDING' | 'IN_PROGRESS' | 'DONE' }) => transactionApi.updateKitchenStatus(id, status),
-    onSuccess: () => {
+    mutationFn: ({ id, status }: { id: string; status: 'PENDING' | 'IN_PROGRESS' | 'DONE' }) =>
+      transactionApi.updateKitchenStatus(id, status),
+    onSuccess: (updatedTx) => {
+      // Optimistically update local state immediately
+      mergeTransaction(updatedTx);
+      // Also invalidate React Query cache
       qc.invalidateQueries({ queryKey: ['transactions'] });
     },
     onError: () => {
-      setToast({ msg: 'Gagal update status pesanan', type: 'error' });
-      setTimeout(() => setToast(null), 3000);
+      showToast('Gagal update status pesanan', 'error');
     }
   });
 
-  if (isLoading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading KDS...</div>;
+  if (isInitialLoading) return <div style={{ padding: '2rem', textAlign: 'center' }}>Loading KDS...</div>;
 
   const renderCard = (tx: any, isPending: boolean, isInProgress: boolean) => (
     <div key={tx.id} style={{ background: 'var(--bg-card)', border: '2px solid var(--border)', borderRadius: '1rem', overflow: 'hidden', display: 'flex', flexDirection: 'column', marginBottom: '1rem', boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)' }}>
@@ -158,8 +243,27 @@ export default function KitchenPage() {
         <div>
           <h1 style={{ margin: 0, fontSize: '2rem' }}>Kitchen Display System (KDS)</h1>
           <div style={{ marginTop: '0.35rem', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-            Refresh {Math.max(3, kdsRefreshInterval)} detik • Sound {kdsSoundEnabled ? 'ON' : 'OFF'} • Done hide {kdsDoneHideMinutes} menit
+            {isConnected
+              ? 'Real-time via WebSocket'
+              : `Fallback polling ${Math.max(3, kdsRefreshInterval)}s`}
+            {' '}• Sound {kdsSoundEnabled ? 'ON' : 'OFF'} • Done hide {kdsDoneHideMinutes} menit
           </div>
+        </div>
+        {/* Connection status badge */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '0.4rem',
+          padding: '0.4rem 0.85rem',
+          borderRadius: '2rem',
+          background: isConnected ? 'rgba(16,185,129,0.12)' : 'rgba(239,68,68,0.12)',
+          border: `1px solid ${isConnected ? 'rgba(16,185,129,0.3)' : 'rgba(239,68,68,0.3)'}`,
+          fontSize: '0.82rem',
+          fontWeight: 600,
+          color: isConnected ? '#059669' : '#dc2626',
+        }}>
+          {isConnected ? <Wifi size={14} /> : <WifiOff size={14} />}
+          {isConnected ? 'Live' : 'Offline'}
         </div>
       </div>
 

@@ -16,6 +16,7 @@ class CreateIngredientDto {
     unit;
     costPerUnit;
     stockQuantity;
+    outletId;
 }
 exports.CreateIngredientDto = CreateIngredientDto;
 __decorate([
@@ -32,8 +33,14 @@ __decorate([
     __metadata("design:type", Number)
 ], CreateIngredientDto.prototype, "costPerUnit", void 0);
 __decorate([
+    (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsNumber)(),
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], CreateIngredientDto.prototype, "stockQuantity", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], CreateIngredientDto.prototype, "outletId", void 0);
 //# sourceMappingURL=create-ingredient.dto.js.map

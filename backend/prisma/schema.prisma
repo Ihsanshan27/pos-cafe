@@ -32,12 +32,12 @@ model Ingredient {
   name          String
   unit          String       // e.g., gram, ml, pcs
   costPerUnit   Decimal      // Cost per unit for dynamic HPP calculation
-  stockQuantity Float
   createdAt     DateTime     @default(now())
   updatedAt     DateTime     @updatedAt
   recipes       RecipeItem[]
   inventoryLogs InventoryLog[]
   purchaseOrderItems PurchaseOrderItem[]
+  outletStocks  OutletIngredient[]
 }
 
 model Outlet {
@@ -55,6 +55,9 @@ model Outlet {
   expenses     Expense[]
   purchaseOrders PurchaseOrder[]
   tableQRCodes TableQRCode[]
+  outletStocks OutletIngredient[]
+  inventoryLogs InventoryLog[]
+  outletMenus  OutletMenu[]
 }
 
 model Category {
@@ -75,6 +78,7 @@ model Menu {
   updatedAt     DateTime     @updatedAt
   ingredients   RecipeItem[]
   transactions  TransactionItem[]
+  outletMenus   OutletMenu[]
 }
 
 model RecipeItem {
@@ -119,17 +123,24 @@ model Discount {
 }
 
 model Shift {
-  id               String        @id @default(uuid())
-  userId           String
-  user             User          @relation(fields: [userId], references: [id])
-  outletId         String?
-  outlet           Outlet?       @relation(fields: [outletId], references: [id], onDelete: SetNull)
-  startTime        DateTime      @default(now())
-  endTime          DateTime?
-  startingCash     Decimal
-  actualEndingCash Decimal?
-  status           String        @default("OPEN") // 'OPEN' or 'CLOSED'
-  transactions     Transaction[]
+  id                  String        @id @default(uuid())
+  userId              String
+  user                User          @relation(fields: [userId], references: [id])
+  outletId            String?
+  outlet              Outlet?       @relation(fields: [outletId], references: [id], onDelete: SetNull)
+  startTime           DateTime      @default(now())
+  endTime             DateTime?
+  startingCash        Decimal
+  actualEndingCash    Decimal?
+  expectedEndingCash  Decimal?      // Calculated: startingCash + CASH sales - expenses
+  cashDifference      Decimal?      // actualEndingCash - expectedEndingCash
+  totalCashSales      Decimal?      // Total revenue from CASH transactions
+  totalNonCashSales   Decimal?      // Total revenue from non-CASH transactions
+  totalExpenses       Decimal?      // Total expenses during shift
+  transactionCount    Int?          // Number of completed transactions
+  notes               String?       // Cashier closing notes
+  status              String        @default("OPEN") // 'OPEN' or 'CLOSED'
+  transactions        Transaction[]
 }
 
 model Transaction {
@@ -212,6 +223,8 @@ model InventoryLog {
   id           String      @id @default(uuid())
   ingredientId String
   ingredient   Ingredient  @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  outletId     String?
+  outlet       Outlet?     @relation(fields: [outletId], references: [id], onDelete: SetNull)
   type         LogType
   quantity     Float
   notes        String?
@@ -287,4 +300,39 @@ model TableQRCode {
   updatedAt   DateTime @updatedAt
 
   @@unique([outletId, code])
+}
+
+model OutletIngredient {
+  id            String     @id @default(uuid())
+  outletId      String
+  outlet        Outlet     @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  ingredientId  String
+  ingredient    Ingredient @relation(fields: [ingredientId], references: [id], onDelete: Cascade)
+  stockQuantity Float      @default(0)
+
+  @@unique([outletId, ingredientId])
+}
+
+model OutletMenu {
+  id            String   @id @default(uuid())
+  outletId      String
+  outlet        Outlet   @relation(fields: [outletId], references: [id], onDelete: Cascade)
+  menuId        String
+  menu          Menu     @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  sellingPrice  Decimal
+  isActive      Boolean  @default(true)
+
+  @@unique([outletId, menuId])
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String?
+  userEmail  String?
+  userName   String?
+  action     String   // e.g. "UPDATE_MENU", "VOID_TRANSACTION", "RESTORE_BACKUP"
+  target     String   // e.g. "Menu: Cappuccino", "Transaksi: Order #SHN..."
+  details    String?  // Data lama vs baru / detail deskripsi
+  ipAddress  String?
+  createdAt  DateTime @default(now())
 }

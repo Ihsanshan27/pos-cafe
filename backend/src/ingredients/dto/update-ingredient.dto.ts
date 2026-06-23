@@ -18,4 +18,8 @@ export class UpdateIngredientDto {
   @IsNumber()
   @Min(0)
   stockQuantity?: number;
+
+  @IsOptional()
+  @IsString()
+  outletId?: string;
 }

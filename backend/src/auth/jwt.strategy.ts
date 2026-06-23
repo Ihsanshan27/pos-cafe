@@ -17,7 +17,16 @@ function getJwtSecret() {
 export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(private prisma: PrismaService, private settingsService: SettingsService) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: ExtractJwt.fromExtractors([
+        ExtractJwt.fromAuthHeaderAsBearerToken(),
+        (req: any) => {
+          let token = null;
+          if (req && req.cookies) {
+            token = req.cookies['access_token'];
+          }
+          return token;
+        },
+      ]),
       ignoreExpiration: false,
       secretOrKey: getJwtSecret(),
     });

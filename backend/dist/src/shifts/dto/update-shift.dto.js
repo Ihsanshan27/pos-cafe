@@ -15,6 +15,7 @@ const class_validator_1 = require("class-validator");
 class UpdateShiftDto {
     actualEndingCash;
     status;
+    notes;
 }
 exports.UpdateShiftDto = UpdateShiftDto;
 __decorate([
@@ -28,4 +29,9 @@ __decorate([
     (0, class_validator_1.IsIn)(['OPEN', 'CLOSED']),
     __metadata("design:type", String)
 ], UpdateShiftDto.prototype, "status", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], UpdateShiftDto.prototype, "notes", void 0);
 //# sourceMappingURL=update-shift.dto.js.map

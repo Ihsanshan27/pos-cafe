@@ -88,16 +88,34 @@ let PurchaseOrdersService = class PurchaseOrdersService {
                         where: { id: item.id },
                         data: { receivedQuantity },
                     });
+                    if (purchaseOrder.outletId) {
+                        await tx.outletIngredient.upsert({
+                            where: {
+                                outletId_ingredientId: {
+                                    outletId: purchaseOrder.outletId,
+                                    ingredientId: item.ingredientId,
+                                },
+                            },
+                            update: {
+                                stockQuantity: { increment: receivedQuantity },
+                            },
+                            create: {
+                                outletId: purchaseOrder.outletId,
+                                ingredientId: item.ingredientId,
+                                stockQuantity: receivedQuantity,
+                            },
+                        });
+                    }
                     await tx.ingredient.update({
                         where: { id: item.ingredientId },
                         data: {
-                            stockQuantity: { increment: receivedQuantity },
                             costPerUnit: item.unitCost,
                         },
                     });
                     await tx.inventoryLog.create({
                         data: {
                             ingredientId: item.ingredientId,
+                            outletId: purchaseOrder.outletId,
                             type: 'IN',
                             quantity: receivedQuantity,
                             notes: `Received from ${purchaseOrder.orderNumber}`,

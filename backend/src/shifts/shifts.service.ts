@@ -90,6 +90,60 @@ export class ShiftsService {
     };
   }
 
+  /**
+   * Calculates shift summary for a given shift ID.
+   * Returns cash/non-cash sales, expenses, expected ending cash, etc.
+   */
+  async getShiftSummary(user: AuthenticatedUser, id: string) {
+    const shift = await this.prisma.shift.findUnique({
+      where: { id },
+      include: { transactions: true },
+    });
+    if (!shift) throw new BadRequestException('Shift not found');
+    this.assertShiftAccess(user, shift.userId, shift.outletId);
+
+    return this.computeShiftSummary(shift);
+  }
+
+  private async computeShiftSummary(shift: any) {
+    // Get all COMPLETED transactions in this shift
+    const transactions = await this.prisma.transaction.findMany({
+      where: { shiftId: shift.id, status: 'COMPLETED' },
+    });
+
+    // Get expenses logged during this shift's duration in this outlet
+    const expenses = await this.prisma.expense.findMany({
+      where: {
+        ...(shift.outletId ? { outletId: shift.outletId } : {}),
+        createdAt: {
+          gte: shift.startTime,
+          ...(shift.endTime ? { lte: shift.endTime } : {}),
+        },
+      },
+    });
+
+    const cashTxs = transactions.filter((t) => t.paymentMethod === 'CASH');
+    const nonCashTxs = transactions.filter((t) => t.paymentMethod !== 'CASH');
+
+    const totalCashSales = cashTxs.reduce((sum, t) => sum + Number(t.totalAmount), 0);
+    const totalNonCashSales = nonCashTxs.reduce((sum, t) => sum + Number(t.totalAmount), 0);
+    const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+    const transactionCount = transactions.length;
+
+    // Expected cash = Starting cash + all CASH sales - expenses
+    const expectedEndingCash = Number(shift.startingCash) + totalCashSales - totalExpenses;
+
+    return {
+      startingCash: Number(shift.startingCash),
+      totalCashSales,
+      totalNonCashSales,
+      totalExpenses,
+      transactionCount,
+      expectedEndingCash,
+      expenseDetails: expenses,
+    };
+  }
+
   async update(user: AuthenticatedUser, id: string, updateShiftDto: UpdateShiftDto) {
     const existingShift = await this.prisma.shift.findUnique({ where: { id } });
     if (!existingShift) {
@@ -98,14 +152,49 @@ export class ShiftsService {
 
     this.assertShiftAccess(user, existingShift.userId, existingShift.outletId);
 
+    // If closing the shift, calculate reconciliation data
+    if (updateShiftDto.status === 'CLOSED') {
+      const shiftWithEndTime = {
+        ...existingShift,
+        endTime: new Date(),
+      };
+
+      const summary = await this.computeShiftSummary(shiftWithEndTime);
+      const actualEndingCash = updateShiftDto.actualEndingCash !== undefined
+        ? updateShiftDto.actualEndingCash
+        : undefined;
+
+      const cashDifference = actualEndingCash !== undefined
+        ? actualEndingCash - summary.expectedEndingCash
+        : undefined;
+
+      return this.prisma.shift.update({
+        where: { id },
+        data: {
+          status: 'CLOSED',
+          endTime: new Date(),
+          actualEndingCash: actualEndingCash,
+          expectedEndingCash: summary.expectedEndingCash,
+          cashDifference: cashDifference,
+          totalCashSales: summary.totalCashSales,
+          totalNonCashSales: summary.totalNonCashSales,
+          totalExpenses: summary.totalExpenses,
+          transactionCount: summary.transactionCount,
+          notes: updateShiftDto.notes ?? undefined,
+        },
+      });
+    }
+
+    // For other updates (status OPEN or just updating notes)
     return this.prisma.shift.update({
       where: { id },
       data: {
-        ...updateShiftDto,
-        endTime: updateShiftDto.status === 'CLOSED' ? new Date() : undefined,
+        actualEndingCash: updateShiftDto.actualEndingCash,
+        notes: updateShiftDto.notes,
       },
     });
   }
+
 
   private resolveScopedOutletId(user: AuthenticatedUser, requestedOutletId?: string) {
     if (user.role === Role.OWNER || user.role === Role.MANAGER) {

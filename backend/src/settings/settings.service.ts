@@ -31,10 +31,21 @@ export class SettingsService {
     });
   }
 
-  async setManySettings(settings: Record<string, string>) {
-    return Promise.all(
+  async setManySettings(settings: Record<string, string>, user?: any, ip?: string) {
+    const result = await Promise.all(
       Object.entries(settings).map(([key, value]) => this.setSetting(key, value)),
     );
+    if (user) {
+      const keys = Object.keys(settings).join(', ');
+      await this.logActivity(
+        user,
+        'UPDATE_SETTINGS',
+        'System Settings',
+        `Mengubah pengaturan sistem: ${keys}`,
+        ip,
+      );
+    }
+    return result;
   }
 
   async getAllowRegistration() {
@@ -124,7 +135,7 @@ export class SettingsService {
   }
 
   async exportBackup() {
-    const [systemInfo, settings, users, categories, ingredients, menus, discounts, customers, expenses, shifts, transactions, inventoryLogs] =
+    const [systemInfo, settings, users, categories, ingredients, menus, discounts, customers, expenses, shifts, transactions, inventoryLogs, outletIngredients, outletMenus] =
       await Promise.all([
         this.getSystemInfo(),
         this.prisma.setting.findMany({ orderBy: { key: 'asc' } }),
@@ -158,6 +169,8 @@ export class SettingsService {
           orderBy: { createdAt: 'asc' },
           include: { ingredient: true },
         }),
+        this.prisma.outletIngredient.findMany({ orderBy: { outletId: 'asc' } }),
+        this.prisma.outletMenu.findMany({ orderBy: { outletId: 'asc' } }),
       ]);
 
     return {
@@ -177,6 +190,8 @@ export class SettingsService {
         shifts,
         transactions,
         inventoryLogs,
+        outletIngredients,
+        outletMenus,
       },
     };
   }
@@ -185,25 +200,44 @@ export class SettingsService {
     const retentionSetting = await this.getSetting('LOG_RETENTION_DAYS');
     const retentionDays = Number(retentionSetting?.value ?? '30');
 
-    if (!Number.isFinite(retentionDays) || retentionDays <= 0) {
-      return { deletedCount: 0 };
-    }
+    const auditRetentionSetting = await this.getSetting('AUDIT_LOG_RETENTION_DAYS');
+    const auditRetentionDays = Number(auditRetentionSetting?.value ?? '30');
+
+    let deletedCount = 0;
+    let deletedAuditCount = 0;
 
     const cutoffDate = new Date();
-    cutoffDate.setDate(cutoffDate.getDate() - retentionDays);
 
-    const result = await this.prisma.inventoryLog.deleteMany({
-      where: {
-        createdAt: {
-          lt: cutoffDate,
+    if (Number.isFinite(retentionDays) && retentionDays > 0) {
+      const invCutoff = new Date(cutoffDate);
+      invCutoff.setDate(invCutoff.getDate() - retentionDays);
+      const result = await this.prisma.inventoryLog.deleteMany({
+        where: {
+          createdAt: {
+            lt: invCutoff,
+          },
         },
-      },
-    });
+      });
+      deletedCount = result.count;
+    }
 
-    return { deletedCount: result.count };
+    if (Number.isFinite(auditRetentionDays) && auditRetentionDays > 0) {
+      const auditCutoff = new Date(cutoffDate);
+      auditCutoff.setDate(auditCutoff.getDate() - auditRetentionDays);
+      const result = await this.prisma.auditLog.deleteMany({
+        where: {
+          createdAt: {
+            lt: auditCutoff,
+          },
+        },
+      });
+      deletedAuditCount = result.count;
+    }
+
+    return { deletedCount, deletedAuditCount };
   }
 
-  async resetDemoData() {
+  async resetDemoData(user?: any, ip?: string) {
     const summary = await this.prisma.$transaction(async (tx) => {
       const deletedTransactionPricingMeta = await tx.setting.deleteMany({
         where: {
@@ -222,6 +256,8 @@ export class SettingsService {
       const deletedRecipeItems = await tx.recipeItem.deleteMany();
       const deletedMenus = await tx.menu.deleteMany();
       const deletedCategories = await tx.category.deleteMany();
+      const deletedOutletIngredients = await tx.outletIngredient.deleteMany();
+      const deletedOutletMenus = await tx.outletMenu.deleteMany();
       const deletedIngredients = await tx.ingredient.deleteMany();
 
       return {
@@ -236,9 +272,21 @@ export class SettingsService {
         recipeItems: deletedRecipeItems.count,
         menus: deletedMenus.count,
         categories: deletedCategories.count,
+        outletIngredients: deletedOutletIngredients.count,
+        outletMenus: deletedOutletMenus.count,
         ingredients: deletedIngredients.count,
       };
     });
+
+    if (user) {
+      await this.logActivity(
+        user,
+        'RESET_DEMO_DATA',
+        'System Settings & Data',
+        'Reset seluruh data operasional ke demo/sample data.',
+        ip,
+      );
+    }
 
     return {
       success: true,
@@ -246,7 +294,7 @@ export class SettingsService {
     };
   }
 
-  async restoreBackup(backup: any) {
+  async restoreBackup(backup: any, user?: any, ip?: string) {
     const data = backup?.data ?? {};
 
     const summary = await this.prisma.$transaction(async (tx) => {
@@ -265,6 +313,8 @@ export class SettingsService {
       await tx.recipeItem.deleteMany();
       await tx.menu.deleteMany();
       await tx.category.deleteMany();
+      await tx.outletIngredient.deleteMany();
+      await tx.outletMenu.deleteMany();
       await tx.ingredient.deleteMany();
       await tx.setting.deleteMany({
         where: {
@@ -280,6 +330,8 @@ export class SettingsService {
         settings: 0,
         categories: 0,
         ingredients: 0,
+        outletIngredients: 0,
+        outletMenus: 0,
         menus: 0,
         discounts: 0,
         customers: 0,
@@ -312,12 +364,36 @@ export class SettingsService {
             name: item.name,
             unit: item.unit,
             costPerUnit: item.costPerUnit,
-            stockQuantity: item.stockQuantity,
             createdAt: item.createdAt,
             updatedAt: item.updatedAt,
           })),
         });
         created.ingredients = data.ingredients.length;
+      }
+
+      if (Array.isArray(data.outletIngredients) && data.outletIngredients.length > 0) {
+        await tx.outletIngredient.createMany({
+          data: data.outletIngredients.map((item: any) => ({
+            id: item.id,
+            outletId: item.outletId,
+            ingredientId: item.ingredientId,
+            stockQuantity: item.stockQuantity,
+          })),
+        });
+        created.outletIngredients = data.outletIngredients.length;
+      }
+
+      if (Array.isArray(data.outletMenus) && data.outletMenus.length > 0) {
+        await tx.outletMenu.createMany({
+          data: data.outletMenus.map((item: any) => ({
+            id: item.id,
+            outletId: item.outletId,
+            menuId: item.menuId,
+            sellingPrice: item.sellingPrice,
+            isActive: item.isActive,
+          })),
+        });
+        created.outletMenus = data.outletMenus.length;
       }
 
       if (Array.isArray(data.menus) && data.menus.length > 0) {
@@ -450,6 +526,7 @@ export class SettingsService {
           data: data.inventoryLogs.map((item: any) => ({
             id: item.id,
             ingredientId: item.ingredientId,
+            outletId: item.outletId,
             type: item.type,
             quantity: item.quantity,
             notes: item.notes,
@@ -463,9 +540,50 @@ export class SettingsService {
       return created;
     });
 
+    if (user) {
+      await this.logActivity(
+        user,
+        'RESTORE_BACKUP',
+        'System Settings & Data',
+        'Restore database dari backup JSON berhasil.',
+        ip,
+      );
+    }
+
     return {
       success: true,
       summary,
     };
+  }
+
+  async logActivity(
+    user: { id: string; email: string; name: string } | null,
+    action: string,
+    target: string,
+    details?: string,
+    ipAddress?: string,
+  ) {
+    try {
+      await this.prisma.auditLog.create({
+        data: {
+          userId: user?.id,
+          userEmail: user?.email,
+          userName: user?.name,
+          action,
+          target,
+          details,
+          ipAddress,
+        },
+      });
+    } catch (e) {
+      console.error('Failed to write audit log:', e);
+    }
+  }
+
+  async getAuditLogs() {
+    return this.prisma.auditLog.findMany({
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
   }
 }

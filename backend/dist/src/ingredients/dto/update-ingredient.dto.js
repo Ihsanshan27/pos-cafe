@@ -16,6 +16,7 @@ class UpdateIngredientDto {
     unit;
     costPerUnit;
     stockQuantity;
+    outletId;
 }
 exports.UpdateIngredientDto = UpdateIngredientDto;
 __decorate([
@@ -40,4 +41,9 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], UpdateIngredientDto.prototype, "stockQuantity", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsString)(),
+    __metadata("design:type", String)
+], UpdateIngredientDto.prototype, "outletId", void 0);
 //# sourceMappingURL=update-ingredient.dto.js.map

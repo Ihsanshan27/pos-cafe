@@ -12,7 +12,7 @@ export declare class SettingsController {
     setAllowRegistration(allowed: boolean): Promise<{
         allowed: boolean;
     }>;
-    setManySettings(settings: Record<string, string>): Promise<{
+    setManySettings(req: any, settings: Record<string, string>): Promise<{
         key: string;
         value: string;
     }[]>;
@@ -56,11 +56,10 @@ export declare class SettingsController {
             ingredients: {
                 id: string;
                 name: string;
-                unit: string;
-                costPerUnit: import("@prisma/client-runtime-utils").Decimal;
-                stockQuantity: number;
                 createdAt: Date;
                 updatedAt: Date;
+                unit: string;
+                costPerUnit: import("@prisma/client-runtime-utils").Decimal;
             }[];
             menus: ({
                 category: {
@@ -85,17 +84,17 @@ export declare class SettingsController {
             })[];
             discounts: {
                 id: string;
+                isActive: boolean;
                 value: import("@prisma/client-runtime-utils").Decimal;
                 code: string;
                 type: string;
-                isActive: boolean;
             }[];
             customers: {
                 id: string;
                 name: string;
+                phone: string | null;
                 createdAt: Date;
                 email: string | null;
-                phone: string | null;
                 pointBalance: number;
                 tier: import("@prisma/client").$Enums.CustomerTier;
             }[];
@@ -117,12 +116,19 @@ export declare class SettingsController {
             } & {
                 id: string;
                 outletId: string | null;
-                status: string;
                 userId: string;
                 startTime: Date;
                 endTime: Date | null;
                 startingCash: import("@prisma/client-runtime-utils").Decimal;
                 actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
+                expectedEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
+                cashDifference: import("@prisma/client-runtime-utils").Decimal | null;
+                totalCashSales: import("@prisma/client-runtime-utils").Decimal | null;
+                totalNonCashSales: import("@prisma/client-runtime-utils").Decimal | null;
+                totalExpenses: import("@prisma/client-runtime-utils").Decimal | null;
+                transactionCount: number | null;
+                notes: string | null;
+                status: string;
             })[];
             transactions: ({
                 user: {
@@ -134,19 +140,26 @@ export declare class SettingsController {
                 shift: {
                     id: string;
                     outletId: string | null;
-                    status: string;
                     userId: string;
                     startTime: Date;
                     endTime: Date | null;
                     startingCash: import("@prisma/client-runtime-utils").Decimal;
                     actualEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
+                    expectedEndingCash: import("@prisma/client-runtime-utils").Decimal | null;
+                    cashDifference: import("@prisma/client-runtime-utils").Decimal | null;
+                    totalCashSales: import("@prisma/client-runtime-utils").Decimal | null;
+                    totalNonCashSales: import("@prisma/client-runtime-utils").Decimal | null;
+                    totalExpenses: import("@prisma/client-runtime-utils").Decimal | null;
+                    transactionCount: number | null;
+                    notes: string | null;
+                    status: string;
                 } | null;
                 customer: {
                     id: string;
                     name: string;
+                    phone: string | null;
                     createdAt: Date;
                     email: string | null;
-                    phone: string | null;
                     pointBalance: number;
                     tier: import("@prisma/client").$Enums.CustomerTier;
                 } | null;
@@ -164,8 +177,8 @@ export declare class SettingsController {
                 } & {
                     id: string;
                     quantity: number;
-                    menuId: string;
                     notes: string | null;
+                    menuId: string;
                     priceAtSale: import("@prisma/client-runtime-utils").Decimal;
                     subtotal: import("@prisma/client-runtime-utils").Decimal;
                     transactionId: string;
@@ -174,48 +187,63 @@ export declare class SettingsController {
                 id: string;
                 createdAt: Date;
                 outletId: string | null;
+                userId: string | null;
                 status: import("@prisma/client").$Enums.TransactionStatus;
+                orderNumber: string | null;
+                source: import("@prisma/client").$Enums.TransactionSource;
+                totalAmount: import("@prisma/client-runtime-utils").Decimal;
                 paymentMethod: import("@prisma/client").$Enums.PaymentMethod;
                 orderType: import("@prisma/client").$Enums.OrderType;
                 tableNumber: string | null;
                 discountAmount: import("@prisma/client-runtime-utils").Decimal;
                 taxAmount: import("@prisma/client-runtime-utils").Decimal;
-                shiftId: string | null;
                 customerName: string | null;
                 customerId: string | null;
-                source: import("@prisma/client").$Enums.TransactionSource;
-                userId: string | null;
-                orderNumber: string | null;
-                totalAmount: import("@prisma/client-runtime-utils").Decimal;
+                shiftId: string | null;
                 kitchenStatus: import("@prisma/client").$Enums.KitchenStatus;
             })[];
             inventoryLogs: ({
                 ingredient: {
                     id: string;
                     name: string;
-                    unit: string;
-                    costPerUnit: import("@prisma/client-runtime-utils").Decimal;
-                    stockQuantity: number;
                     createdAt: Date;
                     updatedAt: Date;
+                    unit: string;
+                    costPerUnit: import("@prisma/client-runtime-utils").Decimal;
                 };
             } & {
                 id: string;
                 createdAt: Date;
                 quantity: number;
                 ingredientId: string;
-                notes: string | null;
+                outletId: string | null;
                 type: import("@prisma/client").$Enums.LogType;
+                notes: string | null;
                 createdBy: string | null;
             })[];
+            outletIngredients: {
+                id: string;
+                ingredientId: string;
+                outletId: string;
+                stockQuantity: number;
+            }[];
+            outletMenus: {
+                id: string;
+                isActive: boolean;
+                sellingPrice: import("@prisma/client-runtime-utils").Decimal;
+                outletId: string;
+                menuId: string;
+            }[];
         };
     }>;
-    restoreBackup(backup: any): Promise<{
+    restoreBackup(req: any, backup: any): Promise<{
         success: boolean;
         summary: {
             settings: number;
             categories: number;
             ingredients: number;
+            outletIngredients: number;
+            outletMenus: number;
             menus: number;
             discounts: number;
             customers: number;
@@ -227,8 +255,9 @@ export declare class SettingsController {
     }>;
     applyLogRetention(): Promise<{
         deletedCount: number;
+        deletedAuditCount: number;
     }>;
-    resetDemoData(): Promise<{
+    resetDemoData(req: any): Promise<{
         success: boolean;
         summary: {
             transactionPricingMeta: number;
@@ -242,9 +271,22 @@ export declare class SettingsController {
             recipeItems: number;
             menus: number;
             categories: number;
+            outletIngredients: number;
+            outletMenus: number;
             ingredients: number;
         };
     }>;
+    getAuditLogs(): Promise<{
+        id: string;
+        createdAt: Date;
+        userId: string | null;
+        userEmail: string | null;
+        userName: string | null;
+        action: string;
+        target: string;
+        details: string | null;
+        ipAddress: string | null;
+    }[]>;
     getGenericSetting(key: string): Promise<{
         key: string;
         value: string;

@@ -10,7 +10,7 @@ export class InventoryLogsService {
     private settingsService: SettingsService,
   ) {}
 
-  async create(data: { ingredientId: string; type: LogType; quantity: number; notes?: string; createdBy?: string }) {
+  async create(data: { ingredientId: string; type: LogType; quantity: number; notes?: string; createdBy?: string; outletId?: string }) {
     const normalizedNotes = data.notes?.trim();
     const requireAdjustmentNoteSetting = await this.settingsService.getSetting('REQUIRE_ADJUSTMENT_NOTE');
     const requireAdjustmentNote = requireAdjustmentNoteSetting?.value !== 'false';
@@ -19,18 +19,27 @@ export class InventoryLogsService {
       throw new BadRequestException('Adjustment note is required');
     }
 
-    // Also update ingredient stock automatically
     const ingredient = await this.prisma.ingredient.findUnique({ where: { id: data.ingredientId } });
     if (!ingredient) throw new BadRequestException('Ingredient not found');
 
-    let newStock = Number(ingredient.stockQuantity);
+    const outletIngredient = data.outletId
+      ? await this.prisma.outletIngredient.findUnique({
+          where: {
+            outletId_ingredientId: {
+              outletId: data.outletId,
+              ingredientId: data.ingredientId,
+            },
+          },
+        })
+      : null;
+
+    let newStock = Number(outletIngredient?.stockQuantity ?? 0);
     if (data.type === 'IN') {
       newStock += data.quantity;
     } else if (data.type === 'OUT' || data.type === 'SALE' || data.type === 'VOID') {
-      if (data.type === 'VOID') newStock += data.quantity; // Void implies returned stock
+      if (data.type === 'VOID') newStock += data.quantity;
       else newStock -= data.quantity;
     } else if (data.type === 'ADJUSTMENT') {
-      // adjustment could be positive or negative depending on payload logic
       newStock += data.quantity;
     }
 
@@ -38,14 +47,27 @@ export class InventoryLogsService {
       throw new BadRequestException(`Stock for ${ingredient.name} cannot be negative`);
     }
 
-    await this.prisma.ingredient.update({
-      where: { id: data.ingredientId },
-      data: { stockQuantity: newStock }
-    });
+    if (data.outletId) {
+      await this.prisma.outletIngredient.upsert({
+        where: {
+          outletId_ingredientId: {
+            outletId: data.outletId,
+            ingredientId: data.ingredientId,
+          },
+        },
+        update: { stockQuantity: newStock },
+        create: {
+          outletId: data.outletId,
+          ingredientId: data.ingredientId,
+          stockQuantity: newStock,
+        },
+      });
+    }
 
     return this.prisma.inventoryLog.create({
       data: {
         ingredientId: data.ingredientId,
+        outletId: data.outletId,
         type: data.type,
         quantity: data.quantity,
         notes: normalizedNotes,
@@ -54,8 +76,9 @@ export class InventoryLogsService {
     });
   }
 
-  findAll() {
+  findAll(outletId?: string) {
     return this.prisma.inventoryLog.findMany({
+      where: outletId ? { outletId } : undefined,
       include: { ingredient: true },
       orderBy: { createdAt: 'desc' },
     }).then(async (logs) => {

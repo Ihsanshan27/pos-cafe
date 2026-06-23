@@ -12,13 +12,13 @@ export declare class SuppliersService {
     }): import("@prisma/client").Prisma.Prisma__SupplierClient<{
         id: string;
         name: string;
+        address: string | null;
+        phone: string | null;
+        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
         email: string | null;
         notes: string | null;
-        isActive: boolean;
-        phone: string | null;
-        address: string | null;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     findAll(): import("@prisma/client").Prisma.PrismaPromise<({
         _count: {
@@ -27,13 +27,13 @@ export declare class SuppliersService {
     } & {
         id: string;
         name: string;
+        address: string | null;
+        phone: string | null;
+        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
         email: string | null;
         notes: string | null;
-        isActive: boolean;
-        phone: string | null;
-        address: string | null;
     })[]>;
     update(id: string, data: {
         name?: string;
@@ -45,23 +45,23 @@ export declare class SuppliersService {
     }): import("@prisma/client").Prisma.Prisma__SupplierClient<{
         id: string;
         name: string;
+        address: string | null;
+        phone: string | null;
+        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
         email: string | null;
         notes: string | null;
-        isActive: boolean;
-        phone: string | null;
-        address: string | null;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     remove(id: string): import("@prisma/client").Prisma.Prisma__SupplierClient<{
         id: string;
         name: string;
+        address: string | null;
+        phone: string | null;
+        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
         email: string | null;
         notes: string | null;
-        isActive: boolean;
-        phone: string | null;
-        address: string | null;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
 }

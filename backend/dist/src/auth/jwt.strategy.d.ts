@@ -16,19 +16,19 @@ export declare class JwtStrategy extends JwtStrategy_base {
         id: string;
         name: string;
         createdAt: Date;
-        email: string;
-        outletId: string | null;
-        role: import("@prisma/client").$Enums.Role;
         outlet: {
             id: string;
             name: string;
-            createdAt: Date;
-            updatedAt: Date;
-            isActive: boolean;
-            phone: string | null;
             slug: string;
             address: string | null;
+            phone: string | null;
+            isActive: boolean;
+            createdAt: Date;
+            updatedAt: Date;
         } | null;
+        email: string;
+        outletId: string | null;
+        role: import("@prisma/client").$Enums.Role;
     }>;
 }
 export {};

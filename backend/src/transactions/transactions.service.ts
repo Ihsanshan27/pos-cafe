@@ -5,6 +5,7 @@ import { TransactionStatus, PaymentMethod, CustomerTier, Role } from '@prisma/cl
 import { SettingsService } from '../settings/settings.service';
 import { calculatePricing, type RoundingMode } from './pricing.util';
 import { sanitizeUser } from '../common/user-response.util';
+import { KdsGateway } from './kds.gateway';
 
 type AuthenticatedUser = {
   id: string;
@@ -17,6 +18,7 @@ export class TransactionsService {
   constructor(
     private prisma: PrismaService,
     private settingsService: SettingsService,
+    private kdsGateway: KdsGateway,
   ) {}
 
   async create(user: AuthenticatedUser | null, createTransactionDto: CreateTransactionDto) {
@@ -108,12 +110,13 @@ export class TransactionsService {
       throw new BadRequestException(`Payment method ${paymentMethod} is currently disabled`);
     }
 
-    return this.prisma.$transaction(async (tx) => {
-      if (scopedOutletId) {
-        const outlet = await tx.outlet.findUnique({ where: { id: scopedOutletId } });
-        if (!outlet || !outlet.isActive) {
-          throw new BadRequestException('Outlet not found or inactive');
-        }
+    const createdTransaction = await this.prisma.$transaction(async (tx) => {
+      if (!scopedOutletId) {
+        throw new BadRequestException('Outlet ID is required for transactions');
+      }
+      const outlet = await tx.outlet.findUnique({ where: { id: scopedOutletId } });
+      if (!outlet || !outlet.isActive) {
+        throw new BadRequestException('Outlet not found or inactive');
       }
 
       // 1. Fetch all menus with their recipe items and ingredients
@@ -125,6 +128,9 @@ export class TransactionsService {
             include: {
               ingredient: true,
             },
+          },
+          outletMenus: {
+            where: { outletId: scopedOutletId },
           },
         },
       });
@@ -158,14 +164,25 @@ export class TransactionsService {
         if (!ingredient) {
           throw new BadRequestException(`Ingredient ${ingredientId} not found`);
         }
-        if (ingredient.stockQuantity < deductionAmount) {
+
+        const outletIngredient = await tx.outletIngredient.findUnique({
+          where: {
+            outletId_ingredientId: {
+              outletId: scopedOutletId,
+              ingredientId: ingredientId,
+            },
+          },
+        });
+        const currentStock = outletIngredient?.stockQuantity ?? 0;
+
+        if (currentStock < deductionAmount) {
           throw new BadRequestException(
             `Insufficient stock for ingredient: ${ingredient.name}. ` +
-            `Available: ${ingredient.stockQuantity} ${ingredient.unit}, ` +
+            `Available: ${currentStock} ${ingredient.unit}, ` +
             `Required: ${deductionAmount} ${ingredient.unit}`,
           );
         }
-        if (blockSaleOnLowStock && ingredient.stockQuantity - deductionAmount < lowStockThreshold) {
+        if (blockSaleOnLowStock && currentStock - deductionAmount < lowStockThreshold) {
           throw new BadRequestException(
             `Stock ${ingredient.name} would fall below minimum threshold (${lowStockThreshold} ${ingredient.unit})`,
           );
@@ -174,15 +191,27 @@ export class TransactionsService {
 
       // 4. Deduct stock for each ingredient and write InventoryLog
       for (const [ingredientId, deductionAmount] of stockDeductions.entries()) {
-        await tx.ingredient.update({
-          where: { id: ingredientId },
-          data: {
+        await tx.outletIngredient.upsert({
+          where: {
+            outletId_ingredientId: {
+              outletId: scopedOutletId,
+              ingredientId: ingredientId,
+            },
+          },
+          update: {
             stockQuantity: { decrement: deductionAmount },
           },
+          create: {
+            outletId: scopedOutletId,
+            ingredientId: ingredientId,
+            stockQuantity: -deductionAmount,
+          },
         });
+
         await tx.inventoryLog.create({
           data: {
             ingredientId,
+            outletId: scopedOutletId,
             type: 'SALE',
             quantity: deductionAmount,
             notes: source === 'PUBLIC_QR' ? 'Sold from QR order' : 'Sold in POS',
@@ -195,7 +224,8 @@ export class TransactionsService {
       let totalAmount = 0;
       const transactionItems = items.map((orderItem) => {
         const menu = menus.find((m) => m.id === orderItem.menuId)!;
-        const priceAtSale = Number(menu.sellingPrice);
+        const override = menu.outletMenus[0];
+        const priceAtSale = override ? Number(override.sellingPrice) : Number(menu.sellingPrice);
         const subtotal = priceAtSale * orderItem.quantity;
         totalAmount += subtotal;
 
@@ -330,6 +360,9 @@ export class TransactionsService {
         },
       };
     });
+    // Emit real-time new order event to KDS clients
+    try { this.kdsGateway.emitNewOrder(createdTransaction); } catch {}
+    return createdTransaction;
   }
 
   async findAll(user: AuthenticatedUser, outletId?: string) {
@@ -390,7 +423,7 @@ export class TransactionsService {
     };
   }
 
-  async voidTransaction(id: string) {
+  async voidTransaction(user: any, id: string, ip?: string) {
     const transaction = await this.prisma.transaction.findUnique({
       where: { id },
       include: {
@@ -432,18 +465,29 @@ export class TransactionsService {
         for (const recipeItem of item.menu.ingredients) {
           const quantityToRestore = recipeItem.quantity * item.quantity;
           
-          await tx.ingredient.update({
-            where: { id: recipeItem.ingredientId },
-            data: {
-              stockQuantity: {
-                increment: quantityToRestore
-              }
-            }
-          });
+          if (transaction.outletId) {
+            await tx.outletIngredient.upsert({
+              where: {
+                outletId_ingredientId: {
+                  outletId: transaction.outletId,
+                  ingredientId: recipeItem.ingredientId,
+                },
+              },
+              update: {
+                stockQuantity: { increment: quantityToRestore },
+              },
+              create: {
+                outletId: transaction.outletId,
+                ingredientId: recipeItem.ingredientId,
+                stockQuantity: quantityToRestore,
+              },
+            });
+          }
 
           await tx.inventoryLog.create({
             data: {
               ingredientId: recipeItem.ingredientId,
+              outletId: transaction.outletId,
               type: 'VOID',
               quantity: quantityToRestore,
               notes: `Voided transaction ${transaction.orderNumber}`,
@@ -453,6 +497,15 @@ export class TransactionsService {
       }
 
       const [withMetadata] = await this.attachPricingMetadata([updatedTx]);
+      if (user) {
+        await this.settingsService.logActivity(
+          user,
+          'VOID_TRANSACTION',
+          `Transaksi: ${transaction.orderNumber || transaction.id}`,
+          `Void transaksi oleh ${user.name || user.email}. Total: Rp ${transaction.totalAmount}. Bahan baku direstock.`,
+          ip,
+        );
+      }
       return withMetadata;
     });
   }
@@ -484,10 +537,13 @@ export class TransactionsService {
       },
     });
     const [withMetadata] = await this.attachPricingMetadata([updatedTransaction]);
-    return {
+    const result = {
       ...withMetadata,
       user: withMetadata.user ? sanitizeUser(withMetadata.user) : withMetadata.user,
     };
+    // Emit real-time update to KDS clients
+    try { this.kdsGateway.emitOrderUpdated(result); } catch {}
+    return result;
   }
 
   private async attachPricingMetadata<T extends { id: string }>(transactions: T[]) {

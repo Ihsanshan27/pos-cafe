@@ -16,12 +16,15 @@ const client_1 = require("@prisma/client");
 const settings_service_1 = require("../settings/settings.service");
 const pricing_util_1 = require("./pricing.util");
 const user_response_util_1 = require("../common/user-response.util");
+const kds_gateway_1 = require("./kds.gateway");
 let TransactionsService = class TransactionsService {
     prisma;
     settingsService;
-    constructor(prisma, settingsService) {
+    kdsGateway;
+    constructor(prisma, settingsService, kdsGateway) {
         this.prisma = prisma;
         this.settingsService = settingsService;
+        this.kdsGateway = kdsGateway;
     }
     async create(user, createTransactionDto) {
         const { items, status, paymentMethod, orderType, tableNumber, discountAmount, shiftId, customerName, customerId, outletId, source, } = createTransactionDto;
@@ -81,12 +84,13 @@ let TransactionsService = class TransactionsService {
         if (paymentMethod && !enabledPaymentMethods.includes(paymentMethod)) {
             throw new common_1.BadRequestException(`Payment method ${paymentMethod} is currently disabled`);
         }
-        return this.prisma.$transaction(async (tx) => {
-            if (scopedOutletId) {
-                const outlet = await tx.outlet.findUnique({ where: { id: scopedOutletId } });
-                if (!outlet || !outlet.isActive) {
-                    throw new common_1.BadRequestException('Outlet not found or inactive');
-                }
+        const createdTransaction = await this.prisma.$transaction(async (tx) => {
+            if (!scopedOutletId) {
+                throw new common_1.BadRequestException('Outlet ID is required for transactions');
+            }
+            const outlet = await tx.outlet.findUnique({ where: { id: scopedOutletId } });
+            if (!outlet || !outlet.isActive) {
+                throw new common_1.BadRequestException('Outlet not found or inactive');
             }
             const menuIds = items.map((item) => item.menuId);
             const menus = await tx.menu.findMany({
@@ -96,6 +100,9 @@ let TransactionsService = class TransactionsService {
                         include: {
                             ingredient: true,
                         },
+                    },
+                    outletMenus: {
+                        where: { outletId: scopedOutletId },
                     },
                 },
             });
@@ -120,25 +127,45 @@ let TransactionsService = class TransactionsService {
                 if (!ingredient) {
                     throw new common_1.BadRequestException(`Ingredient ${ingredientId} not found`);
                 }
-                if (ingredient.stockQuantity < deductionAmount) {
+                const outletIngredient = await tx.outletIngredient.findUnique({
+                    where: {
+                        outletId_ingredientId: {
+                            outletId: scopedOutletId,
+                            ingredientId: ingredientId,
+                        },
+                    },
+                });
+                const currentStock = outletIngredient?.stockQuantity ?? 0;
+                if (currentStock < deductionAmount) {
                     throw new common_1.BadRequestException(`Insufficient stock for ingredient: ${ingredient.name}. ` +
-                        `Available: ${ingredient.stockQuantity} ${ingredient.unit}, ` +
+                        `Available: ${currentStock} ${ingredient.unit}, ` +
                         `Required: ${deductionAmount} ${ingredient.unit}`);
                 }
-                if (blockSaleOnLowStock && ingredient.stockQuantity - deductionAmount < lowStockThreshold) {
+                if (blockSaleOnLowStock && currentStock - deductionAmount < lowStockThreshold) {
                     throw new common_1.BadRequestException(`Stock ${ingredient.name} would fall below minimum threshold (${lowStockThreshold} ${ingredient.unit})`);
                 }
             }
             for (const [ingredientId, deductionAmount] of stockDeductions.entries()) {
-                await tx.ingredient.update({
-                    where: { id: ingredientId },
-                    data: {
+                await tx.outletIngredient.upsert({
+                    where: {
+                        outletId_ingredientId: {
+                            outletId: scopedOutletId,
+                            ingredientId: ingredientId,
+                        },
+                    },
+                    update: {
                         stockQuantity: { decrement: deductionAmount },
+                    },
+                    create: {
+                        outletId: scopedOutletId,
+                        ingredientId: ingredientId,
+                        stockQuantity: -deductionAmount,
                     },
                 });
                 await tx.inventoryLog.create({
                     data: {
                         ingredientId,
+                        outletId: scopedOutletId,
                         type: 'SALE',
                         quantity: deductionAmount,
                         notes: source === 'PUBLIC_QR' ? 'Sold from QR order' : 'Sold in POS',
@@ -149,7 +176,8 @@ let TransactionsService = class TransactionsService {
             let totalAmount = 0;
             const transactionItems = items.map((orderItem) => {
                 const menu = menus.find((m) => m.id === orderItem.menuId);
-                const priceAtSale = Number(menu.sellingPrice);
+                const override = menu.outletMenus[0];
+                const priceAtSale = override ? Number(override.sellingPrice) : Number(menu.sellingPrice);
                 const subtotal = priceAtSale * orderItem.quantity;
                 totalAmount += subtotal;
                 return {
@@ -267,6 +295,11 @@ let TransactionsService = class TransactionsService {
                 },
             };
         });
+        try {
+            this.kdsGateway.emitNewOrder(createdTransaction);
+        }
+        catch { }
+        return createdTransaction;
     }
     async findAll(user, outletId) {
         const scopedOutletId = this.resolveScopedOutletId(user, outletId);
@@ -325,7 +358,7 @@ let TransactionsService = class TransactionsService {
             user: withMetadata.user ? (0, user_response_util_1.sanitizeUser)(withMetadata.user) : withMetadata.user,
         };
     }
-    async voidTransaction(id) {
+    async voidTransaction(user, id, ip) {
         const transaction = await this.prisma.transaction.findUnique({
             where: { id },
             include: {
@@ -360,17 +393,28 @@ let TransactionsService = class TransactionsService {
             for (const item of transaction.items) {
                 for (const recipeItem of item.menu.ingredients) {
                     const quantityToRestore = recipeItem.quantity * item.quantity;
-                    await tx.ingredient.update({
-                        where: { id: recipeItem.ingredientId },
-                        data: {
-                            stockQuantity: {
-                                increment: quantityToRestore
-                            }
-                        }
-                    });
+                    if (transaction.outletId) {
+                        await tx.outletIngredient.upsert({
+                            where: {
+                                outletId_ingredientId: {
+                                    outletId: transaction.outletId,
+                                    ingredientId: recipeItem.ingredientId,
+                                },
+                            },
+                            update: {
+                                stockQuantity: { increment: quantityToRestore },
+                            },
+                            create: {
+                                outletId: transaction.outletId,
+                                ingredientId: recipeItem.ingredientId,
+                                stockQuantity: quantityToRestore,
+                            },
+                        });
+                    }
                     await tx.inventoryLog.create({
                         data: {
                             ingredientId: recipeItem.ingredientId,
+                            outletId: transaction.outletId,
                             type: 'VOID',
                             quantity: quantityToRestore,
                             notes: `Voided transaction ${transaction.orderNumber}`,
@@ -379,6 +423,9 @@ let TransactionsService = class TransactionsService {
                 }
             }
             const [withMetadata] = await this.attachPricingMetadata([updatedTx]);
+            if (user) {
+                await this.settingsService.logActivity(user, 'VOID_TRANSACTION', `Transaksi: ${transaction.orderNumber || transaction.id}`, `Void transaksi oleh ${user.name || user.email}. Total: Rp ${transaction.totalAmount}. Bahan baku direstock.`, ip);
+            }
             return withMetadata;
         });
     }
@@ -405,10 +452,15 @@ let TransactionsService = class TransactionsService {
             },
         });
         const [withMetadata] = await this.attachPricingMetadata([updatedTransaction]);
-        return {
+        const result = {
             ...withMetadata,
             user: withMetadata.user ? (0, user_response_util_1.sanitizeUser)(withMetadata.user) : withMetadata.user,
         };
+        try {
+            this.kdsGateway.emitOrderUpdated(result);
+        }
+        catch { }
+        return result;
     }
     async attachPricingMetadata(transactions) {
         const metadataMap = await this.settingsService.getTransactionPricingMetadataMap(transactions.map((transaction) => transaction.id));
@@ -452,6 +504,7 @@ exports.TransactionsService = TransactionsService;
 exports.TransactionsService = TransactionsService = __decorate([
     (0, common_1.Injectable)(),
     __metadata("design:paramtypes", [prisma_service_1.PrismaService,
-        settings_service_1.SettingsService])
+        settings_service_1.SettingsService,
+        kds_gateway_1.KdsGateway])
 ], TransactionsService);
 //# sourceMappingURL=transactions.service.js.map

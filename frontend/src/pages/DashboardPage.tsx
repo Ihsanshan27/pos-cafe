@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
 import { ingredientApi, menuApi, transactionApi, expenseApi } from '../lib/api';
+import { useActiveOutlet } from '../hooks/useActiveOutlet';
 import {
   Package,
   UtensilsCrossed,
@@ -17,10 +18,23 @@ function formatCurrency(val: number) {
 }
 
 export default function DashboardPage() {
-  const { data: ingredients = [] } = useQuery({ queryKey: ['ingredients'], queryFn: ingredientApi.getAll });
-  const { data: menus = [] } = useQuery({ queryKey: ['menus'], queryFn: menuApi.getAll });
-  const { data: transactions = [] } = useQuery({ queryKey: ['transactions'], queryFn: transactionApi.getAll });
-  const { data: expenses = [] } = useQuery({ queryKey: ['expenses'], queryFn: expenseApi.getAll });
+  const { activeOutletId } = useActiveOutlet();
+  const { data: ingredients = [] } = useQuery({
+    queryKey: ['ingredients', activeOutletId],
+    queryFn: () => ingredientApi.getAll(activeOutletId),
+  });
+  const { data: menus = [] } = useQuery({
+    queryKey: ['menus', activeOutletId],
+    queryFn: () => menuApi.getAll(activeOutletId || undefined),
+  });
+  const { data: transactions = [] } = useQuery({
+    queryKey: ['transactions', activeOutletId],
+    queryFn: () => transactionApi.getAll(activeOutletId),
+  });
+  const { data: expenses = [] } = useQuery({
+    queryKey: ['expenses', activeOutletId],
+    queryFn: () => expenseApi.getAll(activeOutletId),
+  });
 
   const totalRevenue = transactions.filter(t => t.status === 'COMPLETED').reduce((sum, t) => sum + Number(t.totalAmount), 0);
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
@@ -156,7 +170,7 @@ export default function DashboardPage() {
                   </defs>
                   <XAxis dataKey="name" fontSize={12} tickLine={false} axisLine={false} />
                   <YAxis fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `Rp${val/1000}k`} />
-                  <Tooltip formatter={(value: number) => formatCurrency(value)} />
+                  <Tooltip formatter={(value: any) => formatCurrency(Number(value))} />
                   <Area type="monotone" dataKey="revenue" stroke="#6366f1" fillOpacity={1} fill="url(#colorRev)" />
                 </AreaChart>
               </ResponsiveContainer>

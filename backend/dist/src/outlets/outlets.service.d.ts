@@ -11,66 +11,66 @@ export declare class OutletsService {
     }): Promise<{
         tableQRCodes: {
             id: string;
+            isActive: boolean;
             createdAt: Date;
             updatedAt: Date;
             outletId: string;
             code: string;
-            isActive: boolean;
             label: string | null;
         }[];
     } & {
         id: string;
         name: string;
-        createdAt: Date;
-        updatedAt: Date;
-        isActive: boolean;
-        phone: string | null;
         slug: string;
         address: string | null;
+        phone: string | null;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     findAll(): import("@prisma/client").Prisma.PrismaPromise<({
-        _count: {
-            transactions: number;
-            users: number;
-        };
         tableQRCodes: {
             id: string;
+            isActive: boolean;
             createdAt: Date;
             updatedAt: Date;
             outletId: string;
             code: string;
-            isActive: boolean;
             label: string | null;
         }[];
+        _count: {
+            users: number;
+            transactions: number;
+        };
     } & {
         id: string;
         name: string;
-        createdAt: Date;
-        updatedAt: Date;
-        isActive: boolean;
-        phone: string | null;
         slug: string;
         address: string | null;
+        phone: string | null;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     })[]>;
     findOne(id: string): import("@prisma/client").Prisma.Prisma__OutletClient<({
         tableQRCodes: {
             id: string;
+            isActive: boolean;
             createdAt: Date;
             updatedAt: Date;
             outletId: string;
             code: string;
-            isActive: boolean;
             label: string | null;
         }[];
     } & {
         id: string;
         name: string;
-        createdAt: Date;
-        updatedAt: Date;
-        isActive: boolean;
-        phone: string | null;
         slug: string;
         address: string | null;
+        phone: string | null;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }) | null, null, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     update(id: string, data: {
         name?: string;
@@ -81,32 +81,32 @@ export declare class OutletsService {
     }): import("@prisma/client").Prisma.Prisma__OutletClient<{
         tableQRCodes: {
             id: string;
+            isActive: boolean;
             createdAt: Date;
             updatedAt: Date;
             outletId: string;
             code: string;
-            isActive: boolean;
             label: string | null;
         }[];
     } & {
         id: string;
         name: string;
-        createdAt: Date;
-        updatedAt: Date;
-        isActive: boolean;
-        phone: string | null;
         slug: string;
         address: string | null;
+        phone: string | null;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     remove(id: string): Promise<{
         id: string;
         name: string;
-        createdAt: Date;
-        updatedAt: Date;
-        isActive: boolean;
-        phone: string | null;
         slug: string;
         address: string | null;
+        phone: string | null;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
     createTableQr(outletId: string, data: {
         code: string;
@@ -114,11 +114,11 @@ export declare class OutletsService {
         isActive?: boolean;
     }): import("@prisma/client").Prisma.Prisma__TableQRCodeClient<{
         id: string;
+        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
         outletId: string;
         code: string;
-        isActive: boolean;
         label: string | null;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     updateTableQr(id: string, data: {
@@ -127,40 +127,40 @@ export declare class OutletsService {
         isActive?: boolean;
     }): import("@prisma/client").Prisma.Prisma__TableQRCodeClient<{
         id: string;
+        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
         outletId: string;
         code: string;
-        isActive: boolean;
         label: string | null;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     removeTableQr(id: string): import("@prisma/client").Prisma.Prisma__TableQRCodeClient<{
         id: string;
+        isActive: boolean;
         createdAt: Date;
         updatedAt: Date;
         outletId: string;
         code: string;
-        isActive: boolean;
         label: string | null;
     }, never, import("@prisma/client/runtime/client").DefaultArgs, import("@prisma/client").Prisma.PrismaClientOptions>;
     findPublicOutletTable(outletSlug: string, tableCode: string): Promise<{
         tableQRCodes: {
             id: string;
+            isActive: boolean;
             createdAt: Date;
             updatedAt: Date;
             outletId: string;
             code: string;
-            isActive: boolean;
             label: string | null;
         }[];
     } & {
         id: string;
         name: string;
-        createdAt: Date;
-        updatedAt: Date;
-        isActive: boolean;
-        phone: string | null;
         slug: string;
         address: string | null;
+        phone: string | null;
+        isActive: boolean;
+        createdAt: Date;
+        updatedAt: Date;
     }>;
 }

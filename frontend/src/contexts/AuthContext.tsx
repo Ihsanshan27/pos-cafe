@@ -46,6 +46,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const logout = () => {
+    authApi.logout().catch(() => {});
     clearStoredAccessToken();
     clearStoredUser();
     localStorage.removeItem('last_activity_at');
