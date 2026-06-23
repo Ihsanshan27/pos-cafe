@@ -55,7 +55,7 @@ export class SimpleRateLimitGuard implements CanActivate {
 @Injectable()
 export class LoginRateLimitGuard extends SimpleRateLimitGuard {
   constructor() {
-    super(5, 60_000, 'auth-login');
+    super(30, 60_000, 'auth-login');
   }
 }
 

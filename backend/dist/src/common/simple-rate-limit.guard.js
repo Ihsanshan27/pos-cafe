@@ -52,7 +52,7 @@ exports.SimpleRateLimitGuard = SimpleRateLimitGuard = __decorate([
 ], SimpleRateLimitGuard);
 let LoginRateLimitGuard = class LoginRateLimitGuard extends SimpleRateLimitGuard {
     constructor() {
-        super(5, 60_000, 'auth-login');
+        super(30, 60_000, 'auth-login');
     }
 };
 exports.LoginRateLimitGuard = LoginRateLimitGuard;
