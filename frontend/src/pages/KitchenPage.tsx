@@ -7,7 +7,10 @@ import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
 import { useActiveOutlet } from '../hooks/useActiveOutlet';
 import { io, Socket } from 'socket.io-client';
 
-const KDS_WS_URL = (import.meta.env.VITE_API_URL || 'http://localhost:3000');
+let KDS_WS_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+if (KDS_WS_URL.endsWith('/api/v1')) {
+  KDS_WS_URL = KDS_WS_URL.replace(/\/api\/v1$/, '');
+}
 
 function playDing() {
   try {

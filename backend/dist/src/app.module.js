@@ -8,9 +8,11 @@ var __decorate = (this && this.__decorate) || function (decorators, target, key,
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.AppModule = void 0;
 const common_1 = require("@nestjs/common");
+const core_1 = require("@nestjs/core");
 const app_controller_1 = require("./app.controller");
 const app_service_1 = require("./app.service");
 const prisma_module_1 = require("./prisma/prisma.module");
+const audit_interceptor_1 = require("./common/audit.interceptor");
 const ingredients_module_1 = require("./ingredients/ingredients.module");
 const menus_module_1 = require("./menus/menus.module");
 const transactions_module_1 = require("./transactions/transactions.module");
@@ -34,7 +36,13 @@ exports.AppModule = AppModule = __decorate([
     (0, common_1.Module)({
         imports: [prisma_module_1.PrismaModule, auth_module_1.AuthModule, ingredients_module_1.IngredientsModule, menus_module_1.MenusModule, transactions_module_1.TransactionsModule, expenses_module_1.ExpensesModule, users_module_1.UsersModule, categories_module_1.CategoriesModule, discounts_module_1.DiscountsModule, shifts_module_1.ShiftsModule, settings_module_1.SettingsModule, customers_module_1.CustomersModule, inventory_logs_module_1.InventoryLogsModule, outlets_module_1.OutletsModule, suppliers_module_1.SuppliersModule, purchase_orders_module_1.PurchaseOrdersModule, public_order_module_1.PublicOrderModule],
         controllers: [app_controller_1.AppController],
-        providers: [app_service_1.AppService],
+        providers: [
+            app_service_1.AppService,
+            {
+                provide: core_1.APP_INTERCEPTOR,
+                useClass: audit_interceptor_1.AuditInterceptor,
+            },
+        ],
     })
 ], AppModule);
 //# sourceMappingURL=app.module.js.map

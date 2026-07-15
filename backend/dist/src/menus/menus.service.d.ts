@@ -23,6 +23,20 @@ export declare class MenusService {
             ingredientId: string;
             menuId: string;
         })[];
+        modifierGroups: ({
+            options: {
+                id: string;
+                name: string;
+                price: import("@prisma/client-runtime-utils").Decimal;
+                groupId: string;
+            }[];
+        } & {
+            id: string;
+            name: string;
+            isRequired: boolean;
+            isMultiple: boolean;
+            menuId: string;
+        })[];
     } & {
         id: string;
         name: string;
@@ -47,6 +61,7 @@ export declare class MenusService {
         category: {
             id: string;
             name: string;
+            isStickerPrintable: boolean;
         } | null;
         ingredients: ({
             ingredient: {
@@ -61,6 +76,20 @@ export declare class MenusService {
             id: string;
             quantity: number;
             ingredientId: string;
+            menuId: string;
+        })[];
+        modifierGroups: ({
+            options: {
+                id: string;
+                name: string;
+                price: import("@prisma/client-runtime-utils").Decimal;
+                groupId: string;
+            }[];
+        } & {
+            id: string;
+            name: string;
+            isRequired: boolean;
+            isMultiple: boolean;
             menuId: string;
         })[];
         id: string;
@@ -85,6 +114,7 @@ export declare class MenusService {
         category: {
             id: string;
             name: string;
+            isStickerPrintable: boolean;
         } | null;
         ingredients: ({
             ingredient: {
@@ -99,6 +129,20 @@ export declare class MenusService {
             id: string;
             quantity: number;
             ingredientId: string;
+            menuId: string;
+        })[];
+        modifierGroups: ({
+            options: {
+                id: string;
+                name: string;
+                price: import("@prisma/client-runtime-utils").Decimal;
+                groupId: string;
+            }[];
+        } & {
+            id: string;
+            name: string;
+            isRequired: boolean;
+            isMultiple: boolean;
             menuId: string;
         })[];
         id: string;
@@ -123,6 +167,20 @@ export declare class MenusService {
             id: string;
             quantity: number;
             ingredientId: string;
+            menuId: string;
+        })[];
+        modifierGroups: ({
+            options: {
+                id: string;
+                name: string;
+                price: import("@prisma/client-runtime-utils").Decimal;
+                groupId: string;
+            }[];
+        } & {
+            id: string;
+            name: string;
+            isRequired: boolean;
+            isMultiple: boolean;
             menuId: string;
         })[];
     } & {

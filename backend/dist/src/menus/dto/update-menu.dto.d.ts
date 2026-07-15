@@ -1,4 +1,4 @@
-import { RecipeItemDto } from './create-menu.dto';
+import { RecipeItemDto, ModifierGroupDto } from './create-menu.dto';
 export declare class UpdateMenuDto {
     name?: string;
     description?: string;
@@ -6,4 +6,5 @@ export declare class UpdateMenuDto {
     imageUrl?: string;
     ingredients?: RecipeItemDto[];
     categoryId?: string | null;
+    modifierGroups?: ModifierGroupDto[];
 }

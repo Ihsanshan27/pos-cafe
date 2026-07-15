@@ -10,6 +10,9 @@ function formatCurrency(val: number) {
 
 type RecipeRow = { ingredientId: string; quantity: string };
 
+type ModifierOptionForm = { name: string; price: string };
+type ModifierGroupForm = { name: string; isRequired: boolean; isMultiple: boolean; options: ModifierOptionForm[] };
+
 type FormData = {
   name: string;
   description: string;
@@ -17,14 +20,16 @@ type FormData = {
   imageUrl: string;
   categoryId: string;
   ingredients: RecipeRow[];
+  modifierGroups: ModifierGroupForm[];
 };
 
-const emptyForm: FormData = { name: '', description: '', sellingPrice: '', imageUrl: '', categoryId: '', ingredients: [] };
+const emptyForm: FormData = { name: '', description: '', sellingPrice: '', imageUrl: '', categoryId: '', ingredients: [], modifierGroups: [] };
 
 export default function MenusPage() {
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState<'create' | 'edit' | 'view' | 'overrides' | null>(null);
+  const [activeTab, setActiveTab] = useState<'basic' | 'recipe' | 'modifiers'>('basic');
   const [selected, setSelected] = useState<Menu | null>(null);
   const [form, setForm] = useState<FormData>(emptyForm);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
@@ -46,6 +51,12 @@ export default function MenusPage() {
     imageUrl: f.imageUrl || undefined,
     categoryId: f.categoryId || null,
     ingredients: f.ingredients.filter((r) => r.ingredientId && r.quantity).map((r) => ({ ingredientId: r.ingredientId, quantity: Number(r.quantity) })),
+    modifierGroups: f.modifierGroups.map((g) => ({
+      name: g.name,
+      isRequired: g.isRequired,
+      isMultiple: g.isMultiple,
+      options: g.options.filter((o) => o.name).map((o) => ({ name: o.name, price: Number(o.price) || 0 })),
+    })).filter((g) => g.name && g.options.length > 0),
   });
 
   const createMut = useMutation({
@@ -84,7 +95,7 @@ export default function MenusPage() {
     },
   });
 
-  const openCreate = () => { setForm(emptyForm); setModal('create'); };
+  const openCreate = () => { setForm(emptyForm); setActiveTab('basic'); setModal('create'); };
   const openView = (m: Menu) => {
     setSelected(m);
     setModal('view');
@@ -102,7 +113,14 @@ export default function MenusPage() {
       imageUrl: m.imageUrl ?? '',
       categoryId: (m as any).categoryId ?? '',
       ingredients: m.ingredients.map((r) => ({ ingredientId: r.ingredientId, quantity: String(r.quantity) })),
+      modifierGroups: (m as any).modifierGroups?.map((g: any) => ({
+        name: g.name,
+        isRequired: g.isRequired,
+        isMultiple: g.isMultiple,
+        options: g.options.map((o: any) => ({ name: o.name, price: String(o.price) })),
+      })) || [],
     });
+    setActiveTab('basic');
     setModal('edit');
   };
 
@@ -110,6 +128,21 @@ export default function MenusPage() {
   const removeRecipeRow = (idx: number) => setForm((f) => ({ ...f, ingredients: f.ingredients.filter((_, i) => i !== idx) }));
   const updateRecipeRow = (idx: number, key: keyof RecipeRow, val: string) =>
     setForm((f) => ({ ...f, ingredients: f.ingredients.map((r, i) => i === idx ? { ...r, [key]: val } : r) }));
+
+  const addModifierGroup = () => setForm(f => ({ ...f, modifierGroups: [...f.modifierGroups, { name: '', isRequired: false, isMultiple: false, options: [{ name: '', price: '0' }] }] }));
+  const removeModifierGroup = (idx: number) => setForm(f => ({ ...f, modifierGroups: f.modifierGroups.filter((_, i) => i !== idx) }));
+  const updateModifierGroup = (idx: number, key: keyof ModifierGroupForm, val: any) =>
+    setForm(f => ({ ...f, modifierGroups: f.modifierGroups.map((g, i) => i === idx ? { ...g, [key]: val } : g) }));
+
+  const addModifierOption = (gIdx: number) => setForm(f => ({
+    ...f, modifierGroups: f.modifierGroups.map((g, i) => i === gIdx ? { ...g, options: [...g.options, { name: '', price: '0' }] } : g)
+  }));
+  const removeModifierOption = (gIdx: number, oIdx: number) => setForm(f => ({
+    ...f, modifierGroups: f.modifierGroups.map((g, i) => i === gIdx ? { ...g, options: g.options.filter((_, j) => j !== oIdx) } : g)
+  }));
+  const updateModifierOption = (gIdx: number, oIdx: number, key: keyof ModifierOptionForm, val: string) => setForm(f => ({
+    ...f, modifierGroups: f.modifierGroups.map((g, i) => i === gIdx ? { ...g, options: g.options.map((o, j) => j === oIdx ? { ...o, [key]: val } : o) } : g)
+  }));
 
   const filtered = menus.filter((m) => m.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -316,97 +349,180 @@ export default function MenusPage() {
               <button className="btn btn-secondary btn-icon btn-sm" onClick={() => setModal(null)}><X size={16} /></button>
             </div>
 
-            <div style={{ overflowY: 'auto', maxHeight: '70vh', paddingRight: '0.25rem' }}>
-              <div className="form-group">
-                <label>Name *</label>
-                <input placeholder="e.g. Nasi Goreng Spesial" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
-              </div>
-              <div className="form-group">
-                <label>Description</label>
-                <textarea rows={2} placeholder="Optional description..." value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
-              </div>
-              <div className="form-group">
-                <label>Image URL</label>
-                <input
-                  type="url"
-                  placeholder="https://example.com/menu-image.jpg"
-                  value={form.imageUrl}
-                  onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
-                />
-                <small style={{ color: 'var(--text-muted)' }}>Masukkan link gambar menu. Kosongkan jika belum ada.</small>
-              </div>
-              <div className="form-group">
-                <label>Upload Image</label>
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      uploadImageMut.mutate(file);
-                    }
-                    e.currentTarget.value = '';
-                  }}
-                />
-                <small style={{ color: 'var(--text-muted)' }}>
-                  Upload ke server lokal (`/img`). Maksimal 5 MB. Jika upload dipakai, field URL akan terisi otomatis.
-                </small>
-              </div>
-              {form.imageUrl && (
-                <div style={{ marginBottom: '1rem' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-muted)' }}>Preview</div>
-                  <img
-                    src={resolveMediaUrl(form.imageUrl)}
-                    alt="Preview menu"
-                    style={{ width: '100%', maxWidth: 220, height: 140, objectFit: 'cover', borderRadius: '0.75rem', border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
-                    onLoad={(e) => {
-                      e.currentTarget.style.display = 'block';
-                    }}
-                  />
+            <div style={{ padding: '0.5rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', gap: '1rem', background: 'var(--bg-secondary)' }}>
+              <button className={`btn btn-sm ${activeTab === 'basic' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('basic')}>Basic Info</button>
+              <button className={`btn btn-sm ${activeTab === 'recipe' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('recipe')}>Recipe</button>
+              <button className={`btn btn-sm ${activeTab === 'modifiers' ? 'btn-primary' : 'btn-secondary'}`} onClick={() => setActiveTab('modifiers')}>Varian / Add-ons</button>
+            </div>
+
+            <div style={{ overflowY: 'auto', maxHeight: '65vh', padding: '1rem', paddingRight: '1.25rem' }}>
+              {activeTab === 'basic' && (
+                <>
+                  <div className="form-group">
+                    <label>Name *</label>
+                    <input placeholder="e.g. Nasi Goreng Spesial" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} />
+                  </div>
+                  <div className="form-group">
+                    <label>Description</label>
+                    <textarea rows={2} placeholder="Optional description..." value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
+                  </div>
+                  <div className="form-group">
+                    <label>Image URL</label>
+                    <input
+                      type="url"
+                      placeholder="https://example.com/menu-image.jpg"
+                      value={form.imageUrl}
+                      onChange={(e) => setForm({ ...form, imageUrl: e.target.value })}
+                    />
+                    <small style={{ color: 'var(--text-muted)' }}>Masukkan link gambar menu. Kosongkan jika belum ada.</small>
+                  </div>
+                  <div className="form-group">
+                    <label>Upload Image</label>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          uploadImageMut.mutate(file);
+                        }
+                        e.currentTarget.value = '';
+                      }}
+                    />
+                    <small style={{ color: 'var(--text-muted)' }}>
+                      Upload ke server lokal (`/img`). Maksimal 5 MB. Jika upload dipakai, field URL akan terisi otomatis.
+                    </small>
+                  </div>
+                  {form.imageUrl && (
+                    <div style={{ marginBottom: '1rem' }}>
+                      <div style={{ fontSize: '0.8rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-muted)' }}>Preview</div>
+                      <img
+                        src={resolveMediaUrl(form.imageUrl)}
+                        alt="Preview menu"
+                        style={{ width: '100%', maxWidth: 220, height: 140, objectFit: 'cover', borderRadius: '0.75rem', border: '1px solid var(--border)', background: 'var(--bg-secondary)' }}
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
+                        onLoad={(e) => {
+                          e.currentTarget.style.display = 'block';
+                        }}
+                      />
+                    </div>
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                    <div className="form-group">
+                      <label>Category</label>
+                      <select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
+                        <option value="">No Category</option>
+                        {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Selling Price (Rp) *</label>
+                      <input type="number" min="0" placeholder="0" value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {activeTab === 'recipe' && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <label style={{ margin: 0 }}>Recipe Ingredients</label>
+                    <button className="btn btn-secondary btn-sm" onClick={addRecipeRow}><Plus size={13} /> Add Ingredient</button>
+                  </div>
+                  {form.ingredients.length === 0 ? (
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '0.75rem', background: 'var(--bg-secondary)', borderRadius: '0.5rem' }}>
+                      No recipe items yet
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {form.ingredients.map((row, idx) => (
+                        <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.5rem', alignItems: 'center' }}>
+                          <select value={row.ingredientId} onChange={(e) => updateRecipeRow(idx, 'ingredientId', e.target.value)}>
+                            <option value="">Select ingredient...</option>
+                            {ingredients.map((i) => <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}
+                          </select>
+                          <input type="number" min="0" step="0.1" placeholder="Qty" value={row.quantity} onChange={(e) => updateRecipeRow(idx, 'quantity', e.target.value)} />
+                          <button className="btn btn-danger btn-icon btn-sm" onClick={() => removeRecipeRow(idx)}><X size={13} /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
-                <div className="form-group">
-                  <label>Category</label>
-                  <select value={form.categoryId} onChange={(e) => setForm({ ...form, categoryId: e.target.value })}>
-                    <option value="">No Category</option>
-                    {categories.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Selling Price (Rp) *</label>
-                  <input type="number" min="0" placeholder="0" value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} />
-                </div>
-              </div>
 
-              {/* Recipe Items */}
-              <div style={{ marginTop: '0.5rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                  <label style={{ margin: 0 }}>Recipe Ingredients</label>
-                  <button className="btn btn-secondary btn-sm" onClick={addRecipeRow}><Plus size={13} /> Add</button>
+              {activeTab === 'modifiers' && (
+                <div style={{ marginTop: '0.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                    <label style={{ margin: 0 }}>Modifier Groups</label>
+                    <button className="btn btn-secondary btn-sm" onClick={addModifierGroup}><Plus size={13} /> Add Group</button>
+                  </div>
+                  
+                  {form.modifierGroups.length === 0 ? (
+                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '0.5rem' }}>
+                      Klik "Add Group" untuk membuat varian (Contoh: Pilihan Susu, Suhu, dsb).
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {form.modifierGroups.map((group, gIdx) => (
+                        <div key={gIdx} style={{ padding: '1rem', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '0.5rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
+                            <input
+                              type="text"
+                              placeholder="Group Name (e.g. Milk Type)"
+                              value={group.name}
+                              onChange={(e) => updateModifierGroup(gIdx, 'name', e.target.value)}
+                              style={{ flex: 1, marginRight: '0.5rem', fontWeight: 600, fontSize: '0.9rem' }}
+                              className="input"
+                            />
+                            <button className="btn btn-danger btn-icon btn-sm" onClick={() => removeModifierGroup(gIdx)}><X size={14} /></button>
+                          </div>
+                          
+                          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', margin: 0, cursor: 'pointer' }}>
+                              <input type="checkbox" checked={group.isRequired} onChange={(e) => updateModifierGroup(gIdx, 'isRequired', e.target.checked)} />
+                              Wajib Pilih (Required)
+                            </label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', margin: 0, cursor: 'pointer' }}>
+                              <input type="checkbox" checked={group.isMultiple} onChange={(e) => updateModifierGroup(gIdx, 'isMultiple', e.target.checked)} />
+                              Bisa Pilih Banyak (Multiple)
+                            </label>
+                          </div>
+
+                          <div style={{ marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>Options</div>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                            {group.options.map((opt, oIdx) => (
+                              <div key={oIdx} style={{ display: 'flex', gap: '0.5rem' }}>
+                                <input
+                                  type="text"
+                                  placeholder="Option (e.g. Oat Milk)"
+                                  className="input"
+                                  style={{ flex: 1, padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                                  value={opt.name}
+                                  onChange={(e) => updateModifierOption(gIdx, oIdx, 'name', e.target.value)}
+                                />
+                                <input
+                                  type="number"
+                                  placeholder="+ Price"
+                                  className="input"
+                                  style={{ width: 100, padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
+                                  value={opt.price}
+                                  onChange={(e) => updateModifierOption(gIdx, oIdx, 'price', e.target.value)}
+                                />
+                                <button className="btn btn-secondary btn-icon btn-sm" style={{ padding: '0.4rem' }} onClick={() => removeModifierOption(gIdx, oIdx)}><X size={14} /></button>
+                              </div>
+                            ))}
+                          </div>
+                          <button className="btn btn-secondary btn-sm" style={{ marginTop: '0.5rem' }} onClick={() => addModifierOption(gIdx)}>
+                            <Plus size={13} /> Add Option
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
-                {form.ingredients.length === 0 ? (
-                  <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '0.75rem', background: 'var(--bg-secondary)', borderRadius: '0.5rem' }}>
-                    No recipe items yet
-                  </div>
-                ) : (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {form.ingredients.map((row, idx) => (
-                      <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.5rem', alignItems: 'center' }}>
-                        <select value={row.ingredientId} onChange={(e) => updateRecipeRow(idx, 'ingredientId', e.target.value)}>
-                          <option value="">Select ingredient...</option>
-                          {ingredients.map((i) => <option key={i.id} value={i.id}>{i.name} ({i.unit})</option>)}
-                        </select>
-                        <input type="number" min="0" step="0.1" placeholder="Qty" value={row.quantity} onChange={(e) => updateRecipeRow(idx, 'quantity', e.target.value)} />
-                        <button className="btn btn-danger btn-icon btn-sm" onClick={() => removeRecipeRow(idx)}><X size={13} /></button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              )}
             </div>
 
             <div className="modal-footer">

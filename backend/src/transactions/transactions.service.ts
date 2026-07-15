@@ -235,6 +235,7 @@ export class TransactionsService {
           priceAtSale,
           subtotal,
           notes: orderItem.notes,
+          modifiers: orderItem.modifiers || null,
         };
       });
       
@@ -497,15 +498,6 @@ export class TransactionsService {
       }
 
       const [withMetadata] = await this.attachPricingMetadata([updatedTx]);
-      if (user) {
-        await this.settingsService.logActivity(
-          user,
-          'VOID_TRANSACTION',
-          `Transaksi: ${transaction.orderNumber || transaction.id}`,
-          `Void transaksi oleh ${user.name || user.email}. Total: Rp ${transaction.totalAmount}. Bahan baku direstock.`,
-          ip,
-        );
-      }
       return withMetadata;
     });
   }

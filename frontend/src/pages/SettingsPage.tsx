@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { resolveMediaUrl, settingsApi } from '../lib/api';
+import { printerService } from '../lib/printer';
 import { FEATURE_OPTIONS, stringifyJsonArray, type FeatureKey } from '../lib/featureAccess';
 import {
   Archive,
@@ -48,6 +49,8 @@ type SettingsForm = {
   confirmBeforeCheckout: boolean;
   confirmBeforeVoid: boolean;
   autoPrintReceipt: boolean;
+  enableCupStickers: boolean;
+  printerPaperSize: '58mm' | '80mm';
   enabledPaymentMethods: PaymentMethod[];
   defaultPaymentMethod: PaymentMethod;
   qrisPaymentNote: string;
@@ -92,6 +95,8 @@ const DEFAULT_FORM: SettingsForm = {
   confirmBeforeCheckout: true,
   confirmBeforeVoid: true,
   autoPrintReceipt: false,
+  enableCupStickers: false,
+  printerPaperSize: '58mm',
   enabledPaymentMethods: [...PAYMENT_METHODS],
   defaultPaymentMethod: 'CASH',
   qrisPaymentNote: '',
@@ -310,6 +315,8 @@ export default function SettingsPage() {
       confirmBeforeCheckout: (map.get('CONFIRM_BEFORE_CHECKOUT') ?? 'true') === 'true',
       confirmBeforeVoid: (map.get('CONFIRM_BEFORE_VOID') ?? 'true') === 'true',
       autoPrintReceipt: (map.get('AUTO_PRINT_RECEIPT') ?? 'false') === 'true',
+      enableCupStickers: (map.get('ENABLE_CUP_STICKERS') ?? 'false') === 'true',
+      printerPaperSize: (map.get('PRINTER_PAPER_SIZE') === '80mm' ? '80mm' : '58mm'),
       enabledPaymentMethods,
       defaultPaymentMethod,
       qrisPaymentNote: map.get('QRIS_PAYMENT_NOTE') ?? DEFAULT_FORM.qrisPaymentNote,
@@ -382,6 +389,8 @@ export default function SettingsPage() {
         CONFIRM_BEFORE_CHECKOUT: form.confirmBeforeCheckout ? 'true' : 'false',
         CONFIRM_BEFORE_VOID: form.confirmBeforeVoid ? 'true' : 'false',
         AUTO_PRINT_RECEIPT: form.autoPrintReceipt ? 'true' : 'false',
+        ENABLE_CUP_STICKERS: form.enableCupStickers ? 'true' : 'false',
+        PRINTER_PAPER_SIZE: form.printerPaperSize,
         ENABLED_PAYMENT_METHODS: stringifyJsonArray(form.enabledPaymentMethods),
         DEFAULT_PAYMENT_METHOD: safeDefaultPaymentMethod,
         QRIS_PAYMENT_NOTE: form.qrisPaymentNote.trim(),
@@ -585,9 +594,58 @@ export default function SettingsPage() {
                     key={logoUploadKey}
                     type="file"
                     accept="image/*"
-                    onChange={(e) => {
+                    onChange={async (e) => {
                       const file = e.target.files?.[0];
-                      if (file) uploadLogoMut.mutate(file);
+                      if (!file) return;
+
+                      // If file is > 5MB, compress it
+                      if (file.size > 5 * 1024 * 1024) {
+                        showToast('File besar! Sedang memproses kompresi...', 'success');
+                        try {
+                          const img = new Image();
+                          img.src = URL.createObjectURL(file);
+                          await new Promise((resolve, reject) => {
+                            img.onload = resolve;
+                            img.onerror = reject;
+                          });
+
+                          const canvas = document.createElement('canvas');
+                          let width = img.width;
+                          let height = img.height;
+                          
+                          // max dimension 1024
+                          const MAX_DIMENSION = 1024;
+                          if (width > height && width > MAX_DIMENSION) {
+                            height = Math.round((height * MAX_DIMENSION) / width);
+                            width = MAX_DIMENSION;
+                          } else if (height > MAX_DIMENSION) {
+                            width = Math.round((width * MAX_DIMENSION) / height);
+                            height = MAX_DIMENSION;
+                          }
+                          
+                          canvas.width = width;
+                          canvas.height = height;
+                          const ctx = canvas.getContext('2d');
+                          if (ctx) {
+                            ctx.drawImage(img, 0, 0, width, height);
+                            canvas.toBlob((blob) => {
+                              if (blob) {
+                                const compressedFile = new File([blob], file.name, { type: 'image/jpeg' });
+                                uploadLogoMut.mutate(compressedFile);
+                              } else {
+                                uploadLogoMut.mutate(file);
+                              }
+                            }, 'image/jpeg', 0.8);
+                          } else {
+                            uploadLogoMut.mutate(file);
+                          }
+                        } catch (err) {
+                          showToast('Gagal memproses kompresi gambar', 'error');
+                          uploadLogoMut.mutate(file);
+                        }
+                      } else {
+                        uploadLogoMut.mutate(file);
+                      }
                     }}
                     disabled={uploadLogoMut.isPending}
                   />
@@ -704,6 +762,79 @@ export default function SettingsPage() {
             <ToggleCard checked={form.confirmBeforeCheckout} label="Konfirmasi sebelum checkout" description="Jika nonaktif, checkout langsung diproses tanpa modal konfirmasi." onChange={(checked) => updateForm('confirmBeforeCheckout', checked)} />
             <ToggleCard checked={form.confirmBeforeVoid} label="Konfirmasi sebelum void" description="Jika nonaktif, tombol void langsung mengeksekusi pembatalan transaksi." onChange={(checked) => updateForm('confirmBeforeVoid', checked)} />
             <ToggleCard checked={form.autoPrintReceipt} label="Auto print receipt setelah pembayaran" description="Receipt akan langsung dibuka ke mode print setelah checkout berhasil." onChange={(checked) => updateForm('autoPrintReceipt', checked)} />
+            <ToggleCard checked={form.enableCupStickers} label="Aktifkan Cup Stickers" description="Stiker otomatis dicetak untuk setiap item di order setelah cetak receipt utama." onChange={(checked) => updateForm('enableCupStickers', checked)} />
+            
+            <div className="form-group" style={{ marginTop: '1rem' }}>
+              <label style={{ fontWeight: 600 }}>Printer Paper Size</label>
+              <select
+                className="form-control"
+                value={form.printerPaperSize}
+                onChange={(e) => updateForm('printerPaperSize', e.target.value as '58mm' | '80mm')}
+              >
+                <option value="58mm">58mm (Kecil)</option>
+                <option value="80mm">80mm (Lebar)</option>
+              </select>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.25rem', marginBottom: '1rem' }}>
+                Menyesuaikan ukuran kertas printer kasir Anda untuk merapikan struk dan format receipt.
+              </p>
+              
+              <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary btn-sm"
+                  onClick={async () => {
+                    const success = await printerService.connectSerial();
+                    if (!success) {
+                      showToast('Gagal menghubungkan printer', 'error');
+                      return;
+                    }
+                    try {
+                      await printerService.printReceipt({
+                        customerName: 'Test Customer',
+                        orderType: 'DINE_IN',
+                        items: [
+                          { name: 'Test Menu 1', quantity: 2, price: 15000 },
+                          { name: 'Test Menu 2', quantity: 1, price: 20000 }
+                        ],
+                        total: 50000
+                      }, form.storeName || 'My Cafe', form.printerPaperSize);
+                      showToast('Test print struk berhasil dikirim', 'success');
+                    } catch (e: any) {
+                      showToast('Error: ' + e.message, 'error');
+                    }
+                  }}
+                >
+                  <Receipt size={16} /> Test Print Struk
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-secondary btn-sm"
+                  onClick={async () => {
+                    const success = await printerService.connectSerial();
+                    if (!success) {
+                      showToast('Gagal menghubungkan printer', 'error');
+                      return;
+                    }
+                    try {
+                      await printerService.printCupSticker({
+                        orderNumber: 'TEST-001',
+                        customerName: 'Test Customer',
+                        itemIndex: 1,
+                        totalItems: 3,
+                        menuName: 'Iced Caramel Latte',
+                        modifiers: { 'Shot': [{ name: 'Espresso' }], 'Susu': [{ name: 'Oat Milk' }] },
+                        notes: 'Less Sugar'
+                      }, form.storeName || 'My Cafe', form.printerPaperSize);
+                      showToast('Test print stiker berhasil dikirim', 'success');
+                    } catch (e: any) {
+                      showToast('Error: ' + e.message, 'error');
+                    }
+                  }}
+                >
+                  <Receipt size={16} /> Test Print Stiker
+                </button>
+              </div>
+            </div>
           </SettingSection>
 
           <SettingSection
@@ -923,7 +1054,7 @@ export default function SettingsPage() {
           </SettingSection>
         </div>
 
-        <div className="card" style={{ marginTop: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+        <div className="card" style={{ position: 'sticky', bottom: '1.5rem', zIndex: 50, boxShadow: '0 -10px 25px rgba(0,0,0,0.08)', marginTop: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', border: '1px solid var(--accent)' }}>
           <div>
             <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.35rem' }}>Simpan perubahan</h3>
             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>

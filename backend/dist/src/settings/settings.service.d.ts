@@ -29,13 +29,13 @@ export declare class SettingsService {
     saveTransactionPricingMetadata(transactionId: string, metadata: Record<string, unknown>, tx?: PrismaService | any): Promise<any>;
     getTransactionPricingMetadataMap(transactionIds: string[]): Promise<Map<string, any>>;
     getPackageVersions(): {
-        backendVersion: any;
-        frontendVersion: any;
+        backendVersion: string;
+        frontendVersion: string;
     };
     getSystemInfo(): Promise<{
-        appVersion: any;
-        backendVersion: any;
-        frontendVersion: any;
+        appVersion: string;
+        backendVersion: string;
+        frontendVersion: string;
         logRetentionDays: number;
         generatedAt: string;
     }>;
@@ -43,9 +43,9 @@ export declare class SettingsService {
         meta: {
             exportedAt: string;
             systemInfo: {
-                appVersion: any;
-                backendVersion: any;
-                frontendVersion: any;
+                appVersion: string;
+                backendVersion: string;
+                frontendVersion: string;
                 logRetentionDays: number;
                 generatedAt: string;
             };
@@ -65,6 +65,7 @@ export declare class SettingsService {
             categories: {
                 id: string;
                 name: string;
+                isStickerPrintable: boolean;
             }[];
             ingredients: {
                 id: string;
@@ -78,6 +79,7 @@ export declare class SettingsService {
                 category: {
                     id: string;
                     name: string;
+                    isStickerPrintable: boolean;
                 } | null;
                 ingredients: {
                     id: string;
@@ -195,6 +197,7 @@ export declare class SettingsService {
                     priceAtSale: import("@prisma/client-runtime-utils").Decimal;
                     subtotal: import("@prisma/client-runtime-utils").Decimal;
                     transactionId: string;
+                    modifiers: import("@prisma/client/runtime/client").JsonValue | null;
                 })[];
             } & {
                 id: string;
@@ -289,11 +292,6 @@ export declare class SettingsService {
             inventoryLogs: number;
         };
     }>;
-    logActivity(user: {
-        id: string;
-        email: string;
-        name: string;
-    } | null, action: string, target: string, details?: string, ipAddress?: string): Promise<void>;
     getAuditLogs(): Promise<{
         id: string;
         createdAt: Date;

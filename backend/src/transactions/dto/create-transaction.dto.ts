@@ -15,6 +15,9 @@ export class TransactionItemDto {
   @IsString()
   @MaxLength(300)
   notes?: string;
+
+  @IsOptional()
+  modifiers?: any;
 }
 
 export class CreateTransactionDto {

@@ -1,4 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
+import { db } from '../lib/offline-db';
+import { printerService } from '../lib/printer';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { menuApi, transactionApi, categoryApi, discountApi, shiftApi, customerApi, resolveMediaUrl, ingredientApi } from '../lib/api';
 import type { Menu, Transaction, Category, Discount, Shift, Customer, Ingredient, ShiftSummary } from '../lib/api';
@@ -12,7 +14,7 @@ function formatCurrency(val: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
 }
 
-type CartItem = { menu: Menu; quantity: number; notes?: string };
+type CartItem = { id: string; menu: Menu; quantity: number; notes?: string; modifiers?: any; modifierPrice?: number };
 
 function getMenuAvailability(menu: Menu, lowStockThreshold: number, stockMap: Map<string, number>) {
   if (!menu.ingredients || menu.ingredients.length === 0) {
@@ -68,6 +70,8 @@ export default function POSPage() {
     roundingStep,
     lowStockThreshold,
     blockSaleOnLowStock,
+    enableCupStickers,
+    printerPaperSize,
   } = useAppPublicSettings();
   const [search, setSearch] = useState('');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('ALL');
@@ -81,6 +85,46 @@ export default function POSPage() {
   const [cashReceived, setCashReceived] = useState('');
   const [selectedDiscount, setSelectedDiscount] = useState<Discount | null>(null);
   const [detailMenu, setDetailMenu] = useState<Menu | null>(null);
+  const [modifierMenu, setModifierMenu] = useState<Menu | null>(null);
+  const [modifierSelections, setModifierSelections] = useState<Record<string, any[]>>({});
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = async () => {
+      setIsOffline(false);
+      showToast('Koneksi terhubung. Menyinkronkan pesanan offline...', 'success');
+      
+      const pendingOrders = await db.orders.where('status').equals('PENDING_SYNC').toArray();
+      if (pendingOrders.length === 0) return;
+      
+      let successCount = 0;
+      for (const order of pendingOrders) {
+        try {
+          await transactionApi.create(order as any);
+          await db.orders.update(order.id, { status: 'SYNCED' });
+          successCount++;
+        } catch (e) {
+          console.error('Failed to sync order', order.id, e);
+        }
+      }
+      
+      qc.invalidateQueries({ queryKey: ['transactions'] });
+      qc.invalidateQueries({ queryKey: ['ingredients'] });
+      
+      const remaining = await db.orders.where('status').equals('PENDING_SYNC').count();
+      if (remaining === 0) showToast(`${successCount} pesanan offline berhasil disinkronkan.`, 'success');
+      else showToast(`Berhasil sync ${successCount}, gagal ${remaining}.`, 'error');
+    };
+    const handleOffline = () => setIsOffline(true);
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   const [receiptTx, setReceiptTx] = useState<Transaction | null>(null);
   const [toast, setToast] = useState<{ msg: string; type: 'success' | 'error' } | null>(null);
@@ -94,6 +138,8 @@ export default function POSPage() {
   const [closeShiftNotes, setCloseShiftNotes] = useState('');
   const [shiftSummary, setShiftSummary] = useState<ShiftSummary | null>(null);
   const [isFetchingSummary, setIsFetchingSummary] = useState(false);
+  
+  const [shouldPrint, setShouldPrint] = useState(false);
 
   const { data: menus = [], isLoading: isMenusLoading } = useQuery({
     queryKey: ['menus', activeOutletId],
@@ -125,6 +171,10 @@ export default function POSPage() {
     }
     setHasAppliedOrderDefaults(true);
   }, [defaultOrderType, defaultPaymentMethod, hasAppliedOrderDefaults]);
+  
+  useEffect(() => {
+    setShouldPrint(autoPrintReceipt);
+  }, [autoPrintReceipt]);
 
   useEffect(() => {
     if (!enabledPaymentMethods.includes(paymentMethod)) {
@@ -222,6 +272,46 @@ export default function POSPage() {
     win.document.close();
   };
 
+  const printReceiptWithThermal = async (tx: Transaction) => {
+    try {
+      const orderData = {
+        customerName: tx.customerName || (tx as any).customer?.name || 'Guest',
+        orderType: (tx as any).orderType === 'DINE_IN' ? `DINE IN - ${(tx as any).tableNumber}` : 'TAKEAWAY',
+        items: tx.items.map((i: any) => ({
+          name: i.menu?.name || i.menuName || 'Unknown',
+          quantity: i.quantity,
+          price: Number(i.priceAtSale || i.price),
+        })),
+        total: Number(tx.totalAmount),
+      };
+      await printerService.printReceipt(orderData, storeName, printerPaperSize);
+      
+      if (enableCupStickers) {
+        let totalItems = 0;
+        tx.items.forEach((item: any) => { totalItems += item.quantity; });
+        
+        let currentItem = 1;
+        for (const item of tx.items) {
+          for (let q = 0; q < item.quantity; q++) {
+            await printerService.printCupSticker({
+              orderNumber: tx.orderNumber || tx.id.slice(0, 8).toUpperCase(),
+              customerName: tx.customerName || (tx as any).customer?.name || 'Guest',
+              itemIndex: currentItem,
+              totalItems: totalItems,
+              menuName: (item as any).menu?.name || (item as any).menuName || 'Unknown',
+              modifiers: (item as any).modifiers,
+              notes: (item as any).notes,
+            }, storeName, printerPaperSize);
+            currentItem++;
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Print thermal error', e);
+      printReceipt(tx); // fallback to browser print
+    }
+  };
+
   const openShiftMut = useMutation({
     mutationFn: () => shiftApi.create({ startingCash: Number(startingCash), outletId: activeOutletId || undefined }),
     onSuccess: () => {
@@ -283,8 +373,8 @@ export default function POSPage() {
         roundingStep: Math.max(0, roundingStep),
       });
 
-      return transactionApi.create({ 
-        items: cart.map((c) => ({ menuId: c.menu.id, quantity: c.quantity, notes: c.notes })),
+      const payload = { 
+        items: cart.map((c) => ({ menuId: c.menu.id, quantity: c.quantity, notes: c.notes, modifiers: c.modifiers })),
         paymentMethod,
         orderType,
         tableNumber: orderType === 'DINE_IN' ? tableNumber : undefined,
@@ -294,7 +384,19 @@ export default function POSPage() {
         taxAmount: pricing.taxAmount,
         shiftId: activeShift?.id,
         outletId: activeOutletId || undefined,
-      } as any);
+      } as any;
+      
+      if (isOffline) {
+        const offlineOrder = {
+          id: crypto.randomUUID(),
+          ...payload,
+          items: cart.map((c) => ({ menuId: c.menu.id, menuName: c.menu.name, quantity: c.quantity, price: Number(c.menu.sellingPrice) + (c.modifierPrice || 0), notes: c.notes, modifiers: c.modifiers })),
+          createdAt: new Date().toISOString(),
+          status: 'PENDING_SYNC' as const
+        };
+        return db.orders.add(offlineOrder as any).then(() => ({ ...offlineOrder, totalAmount: finalTotal, orderNumber: 'OFFLINE' } as any));
+      }
+      return transactionApi.create(payload);
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ['transactions'] });
@@ -308,8 +410,8 @@ export default function POSPage() {
       setCashReceived('');
       setSelectedDiscount(null);
       setReceiptTx(data);
-      if (autoPrintReceipt) {
-        setTimeout(() => printReceipt(data), 50);
+      if (shouldPrint) {
+        setTimeout(() => printReceiptWithThermal(data), 50);
       }
       showToast('Order placed successfully! 🎉');
     },
@@ -319,32 +421,34 @@ export default function POSPage() {
     },
   });
 
-  const addToCart = (menu: Menu) => {
+  const addToCart = (menu: Menu, modifiers?: any, modifierPrice = 0) => {
     const availability = getMenuAvailability(menu, lowStockThreshold, ingredientStockMap);
     if (blockSaleOnLowStock && availability.isBlocked) {
       showToast(`Menu ${menu.name} diblokir: ${availability.reason}`, 'error');
       return;
     }
 
+    const modifierStr = JSON.stringify(modifiers || {});
+    
     setCart((prev) => {
-      const exists = prev.find((c) => c.menu.id === menu.id);
-      if (exists) return prev.map((c) => c.menu.id === menu.id ? { ...c, quantity: c.quantity + 1 } : c);
-      return [...prev, { menu, quantity: 1 }];
+      const exists = prev.find((c) => c.menu.id === menu.id && JSON.stringify(c.modifiers || {}) === modifierStr);
+      if (exists) return prev.map((c) => c.id === exists.id ? { ...c, quantity: c.quantity + 1 } : c);
+      return [...prev, { id: crypto.randomUUID(), menu, quantity: 1, modifiers, modifierPrice }];
     });
   };
 
   const updateQty = (id: string, delta: number) => {
-    setCart((prev) => prev.map((c) => c.menu.id === id ? { ...c, quantity: c.quantity + delta } : c).filter((c) => c.quantity > 0));
+    setCart((prev) => prev.map((c) => c.id === id ? { ...c, quantity: c.quantity + delta } : c).filter((c) => c.quantity > 0));
   };
 
   const updateNotes = (id: string, notes: string) => {
-    setCart((prev) => prev.map((c) => c.menu.id === id ? { ...c, notes } : c));
+    setCart((prev) => prev.map((c) => c.id === id ? { ...c, notes } : c));
   };
 
-  const removeFromCart = (id: string) => setCart((prev) => prev.filter((c) => c.menu.id !== id));
+  const removeFromCart = (id: string) => setCart((prev) => prev.filter((c) => c.id !== id));
   const clearCart = () => setCart([]);
 
-  const cartTotal = cart.reduce((sum, c) => sum + Number(c.menu.sellingPrice) * c.quantity, 0);
+  const cartTotal = cart.reduce((sum, c) => sum + (Number(c.menu.sellingPrice) + (c.modifierPrice || 0)) * c.quantity, 0);
   const cartCount = cart.reduce((sum, c) => sum + c.quantity, 0);
   
   let discountAmount = 0;
@@ -421,9 +525,23 @@ export default function POSPage() {
     <div style={{ display: 'flex', flex: 1, height: '100%', overflow: 'hidden' }}>
       {/* Menu Grid */}
       <div className="main-content" style={{ flex: 1 }}>
-        <div className="page-header" style={{ marginBottom: '1rem' }}>
-          <h2>Point of Sale</h2>
-          <p>Select menu items to add to the order{activeOutlet ? ` • Outlet aktif: ${activeOutlet.name}` : ''}</p>
+        <div className="page-header" style={{ marginBottom: '1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <h2>Point of Sale</h2>
+            <p>Select menu items to add to the order{activeOutlet ? ` • Outlet aktif: ${activeOutlet.name}` : ''}</p>
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+            {isOffline && (
+              <span style={{ padding: '0.25rem 0.5rem', background: 'var(--danger)', color: 'white', borderRadius: '0.25rem', fontSize: '0.75rem', fontWeight: 600 }}>OFFLINE MODE</span>
+            )}
+            <button className="btn btn-secondary btn-sm" onClick={async () => {
+              const success = await printerService.connectSerial();
+              if (success) showToast('Printer Thermal (Serial) Connected!', 'success');
+              else showToast('Gagal menghubungkan printer.', 'error');
+            }}>
+              <Printer size={16} /> Connect Printer
+            </button>
+          </div>
         </div>
 
         <div className="page-body" style={{ display: 'flex', flexDirection: 'column' }}>
@@ -466,7 +584,14 @@ export default function POSPage() {
                     key={menu.id}
                     id={`menu-card-${menu.id}`}
                     className="menu-card"
-                    onClick={() => addToCart(menu)}
+                    onClick={() => {
+                      if ((menu as any).modifierGroups?.length > 0) {
+                        setModifierMenu(menu);
+                        setModifierSelections({});
+                      } else {
+                        addToCart(menu);
+                      }
+                    }}
                     style={{
                       ...(inCart ? { borderColor: 'var(--accent)', background: 'rgba(99,102,241,0.07)' } : {}),
                       ...(isMenuBlocked ? { opacity: 0.55, borderColor: 'rgba(239,68,68,0.35)', background: 'rgba(239,68,68,0.05)' } : {}),
@@ -560,30 +685,37 @@ export default function POSPage() {
             </div>
           ) : (
             cart.map((item) => (
-              <div key={item.menu.id} className="cart-item">
+              <div key={item.id} className="cart-item">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                   <div className="cart-item-name" style={{ flex: 1, marginRight: '0.5rem' }}>
                     {item.menu.name}
+                    {item.modifiers && Object.keys(item.modifiers).length > 0 && (
+                      <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
+                        {Object.entries(item.modifiers).map(([group, opts]: [string, any]) => (
+                          <div key={group}>{group}: {opts.map((o: any) => o.name).join(', ')}</div>
+                        ))}
+                      </div>
+                    )}
                     <input 
                       type="text" 
                       placeholder="Notes (e.g. Less sugar)" 
                       style={{ display: 'block', width: '100%', marginTop: '0.25rem', fontSize: '0.75rem', padding: '0.2rem', border: '1px solid var(--border)', borderRadius: '0.25rem', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
                       value={item.notes || ''}
-                      onChange={(e) => updateNotes(item.menu.id, e.target.value)}
+                      onChange={(e) => updateNotes(item.id, e.target.value)}
                     />
                   </div>
-                  <button className="btn btn-danger btn-icon" style={{ width: 22, height: 22, padding: 0 }} onClick={() => removeFromCart(item.menu.id)}>
+                  <button className="btn btn-danger btn-icon" style={{ width: 22, height: 22, padding: 0 }} onClick={() => removeFromCart(item.id)}>
                     <X size={11} />
                   </button>
                 </div>
                 <div className="cart-item-controls">
                   <div className="qty-control">
-                    <button className="qty-btn" onClick={() => updateQty(item.menu.id, -1)}><Minus size={12} /></button>
+                    <button className="qty-btn" onClick={() => updateQty(item.id, -1)}><Minus size={12} /></button>
                     <span className="qty-value">{item.quantity}</span>
-                    <button className="qty-btn" onClick={() => updateQty(item.menu.id, 1)}><Plus size={12} /></button>
+                    <button className="qty-btn" onClick={() => updateQty(item.id, 1)}><Plus size={12} /></button>
                   </div>
                   <span className="cart-item-subtotal">
-                    {formatCurrency(Number(item.menu.sellingPrice) * item.quantity)}
+                    {formatCurrency((Number(item.menu.sellingPrice) + (item.modifierPrice || 0)) * item.quantity)}
                   </span>
                 </div>
               </div>
@@ -904,6 +1036,22 @@ export default function POSPage() {
                 <span style={{ fontWeight: 800, color: 'var(--success)' }}>{formatCurrency(finalTotal)}</span>
               </div>
             </div>
+            
+            <div style={{ marginBottom: '1.5rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={shouldPrint} 
+                  onChange={(e) => setShouldPrint(e.target.checked)} 
+                  style={{ width: '1.2rem', height: '1.2rem' }}
+                />
+                <span>Cetak Struk {enableCupStickers ? '& Stiker' : ''} (Thermal)</span>
+              </label>
+              <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '0.25rem', marginLeft: '1.7rem' }}>
+                Printer thermal menggunakan kabel USB/Serial, Bluetooth, ataupun Jaringan didukung otomatis.
+              </p>
+            </div>
+            
             <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem' }}>
               <button className="btn btn-secondary" onClick={() => setIsConfirmOpen(false)}>Cancel</button>
               <button 
@@ -975,6 +1123,89 @@ export default function POSPage() {
                 }}
               >
                 <ShoppingCart size={16} /> Add to Order
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modifier Selection Modal */}
+      {modifierMenu && (
+        <div className="modal-overlay" onClick={() => setModifierMenu(null)}>
+          <div className="modal" style={{ maxWidth: 450 }} onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>{modifierMenu.name}</h3>
+              <button className="btn btn-secondary btn-icon btn-sm" onClick={() => setModifierMenu(null)}>
+                <X size={16} />
+              </button>
+            </div>
+            <div style={{ maxHeight: '60vh', overflowY: 'auto', paddingRight: '0.25rem' }}>
+              {((modifierMenu as any).modifierGroups || []).map((group: any) => (
+                <div key={group.name} style={{ marginBottom: '1.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                    <div style={{ fontWeight: 600 }}>{group.name}</div>
+                    {group.isRequired && <span style={{ fontSize: '0.7rem', color: 'var(--danger)', background: 'rgba(239,68,68,0.1)', padding: '0.1rem 0.4rem', borderRadius: '0.25rem' }}>Wajib</span>}
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    {group.options.map((opt: any) => {
+                      const isSelected = modifierSelections[group.name]?.some(o => o.name === opt.name);
+                      return (
+                        <label key={opt.name} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: isSelected ? 'rgba(99,102,241,0.08)' : 'var(--bg-secondary)', padding: '0.5rem 0.75rem', borderRadius: '0.5rem', cursor: 'pointer', border: `1px solid ${isSelected ? 'var(--accent)' : 'var(--border)'}` }}>
+                          <input
+                            type={group.isMultiple ? 'checkbox' : 'radio'}
+                            name={`modifier_${group.name}`}
+                            checked={isSelected || false}
+                            onChange={(e) => {
+                              if (group.isMultiple) {
+                                setModifierSelections(prev => {
+                                  const current = prev[group.name] || [];
+                                  if (e.target.checked) return { ...prev, [group.name]: [...current, opt] };
+                                  return { ...prev, [group.name]: current.filter((o: any) => o.name !== opt.name) };
+                                });
+                              } else {
+                                setModifierSelections(prev => ({ ...prev, [group.name]: [opt] }));
+                              }
+                            }}
+                          />
+                          <span style={{ flex: 1, fontSize: '0.9rem' }}>{opt.name}</span>
+                          {opt.price > 0 && <span style={{ fontSize: '0.8rem', color: 'var(--accent)', fontWeight: 600 }}>+{formatCurrency(Number(opt.price))}</span>}
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="modal-actions" style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem' }}>
+              <button className="btn btn-secondary" onClick={() => setModifierMenu(null)}>Cancel</button>
+              <button
+                className="btn btn-primary"
+                style={{ flex: 1, justifyContent: 'center' }}
+                onClick={() => {
+                  let isValid = true;
+                  let missing = '';
+                  for (const group of (modifierMenu as any).modifierGroups || []) {
+                    if (group.isRequired && (!modifierSelections[group.name] || modifierSelections[group.name].length === 0)) {
+                      isValid = false;
+                      missing = group.name;
+                      break;
+                    }
+                  }
+                  if (!isValid) {
+                    showToast(`Mohon lengkapi pilihan wajib: ${missing}`, 'error');
+                    return;
+                  }
+                  
+                  let modifierPrice = 0;
+                  Object.values(modifierSelections).forEach(opts => {
+                    opts.forEach(o => { modifierPrice += Number(o.price); });
+                  });
+                  
+                  addToCart(modifierMenu, modifierSelections, modifierPrice);
+                  setModifierMenu(null);
+                }}
+              >
+                <CheckCircle size={16} /> Add to Cart
               </button>
             </div>
           </div>
@@ -1123,7 +1354,7 @@ export default function POSPage() {
               </button>
               <button 
                 style={{ flex: 1, padding: '1rem', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
-                onClick={() => printReceipt(receiptTx)}
+                onClick={() => printReceiptWithThermal(receiptTx)}
               >
                 <Printer size={16} /> Print
               </button>

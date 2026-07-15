@@ -61,9 +61,10 @@ model Outlet {
 }
 
 model Category {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  menus     Menu[]
+  id                 String   @id @default(uuid())
+  name               String   @unique
+  isStickerPrintable Boolean  @default(true)
+  menus              Menu[]
 }
 
 model Menu {
@@ -79,6 +80,7 @@ model Menu {
   ingredients   RecipeItem[]
   transactions  TransactionItem[]
   outletMenus   OutletMenu[]
+  modifierGroups MenuModifierGroup[]
 }
 
 model RecipeItem {
@@ -189,6 +191,7 @@ model TransactionItem {
   transaction   Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   menuId        String
   menu          Menu        @relation(fields: [menuId], references: [id], onDelete: Restrict)
+  modifiers     Json?
 }
 
 enum TransactionStatus {
@@ -323,6 +326,24 @@ model OutletMenu {
   isActive      Boolean  @default(true)
 
   @@unique([outletId, menuId])
+}
+
+model MenuModifierGroup {
+  id            String               @id @default(uuid())
+  name          String
+  isRequired    Boolean              @default(false)
+  isMultiple    Boolean              @default(false)
+  menuId        String
+  menu          Menu                 @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  options       MenuModifierOption[]
+}
+
+model MenuModifierOption {
+  id            String            @id @default(uuid())
+  name          String
+  price         Decimal           @default(0)
+  groupId       String
+  group         MenuModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
 }
 
 model AuditLog {

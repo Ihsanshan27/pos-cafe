@@ -20,6 +20,7 @@ class UpdateMenuDto {
     imageUrl;
     ingredients;
     categoryId;
+    modifierGroups;
 }
 exports.UpdateMenuDto = UpdateMenuDto;
 __decorate([
@@ -54,4 +55,11 @@ __decorate([
     (0, class_validator_1.IsOptional)(),
     __metadata("design:type", Object)
 ], UpdateMenuDto.prototype, "categoryId", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    (0, class_validator_1.IsArray)(),
+    (0, class_validator_1.ValidateNested)({ each: true }),
+    (0, class_transformer_1.Type)(() => create_menu_dto_1.ModifierGroupDto),
+    __metadata("design:type", Array)
+], UpdateMenuDto.prototype, "modifierGroups", void 0);
 //# sourceMappingURL=update-menu.dto.js.map

@@ -9,43 +9,43 @@ export declare class AuthController {
     constructor(authService: AuthService, settingsService: SettingsService);
     register(dto: RegisterDto): Promise<{
         mustChangePassword: boolean;
-        name: string;
         id: string;
-        email: string;
-        role: import("@prisma/client").$Enums.Role;
+        name: string;
         createdAt: Date;
         outlet: {
-            name: string;
             id: string;
-            createdAt: Date;
+            name: string;
             slug: string;
             address: string | null;
             phone: string | null;
             isActive: boolean;
+            createdAt: Date;
             updatedAt: Date;
         } | null;
+        email: string;
         outletId: string | null;
+        role: import("@prisma/client").$Enums.Role;
     }>;
     login(dto: LoginDto, response: express.Response): Promise<{
         accessToken: string;
         user: {
             mustChangePassword: boolean;
-            name: string;
             id: string;
-            email: string;
-            role: import("@prisma/client").$Enums.Role;
+            name: string;
             createdAt: Date;
             outlet: {
-                name: string;
                 id: string;
-                createdAt: Date;
+                name: string;
                 slug: string;
                 address: string | null;
                 phone: string | null;
                 isActive: boolean;
+                createdAt: Date;
                 updatedAt: Date;
             } | null;
+            email: string;
             outletId: string | null;
+            role: import("@prisma/client").$Enums.Role;
         };
     }>;
     logout(response: express.Response): Promise<{
@@ -58,21 +58,21 @@ export declare class AuthController {
         password?: string;
     }): Promise<{
         mustChangePassword: boolean;
-        name: string;
         id: string;
-        email: string;
-        role: import("@prisma/client").$Enums.Role;
+        name: string;
         createdAt: Date;
         outlet: {
-            name: string;
             id: string;
-            createdAt: Date;
+            name: string;
             slug: string;
             address: string | null;
             phone: string | null;
             isActive: boolean;
+            createdAt: Date;
             updatedAt: Date;
         } | null;
+        email: string;
         outletId: string | null;
+        role: import("@prisma/client").$Enums.Role;
     }>;
 }

@@ -35,16 +35,6 @@ export class SettingsService {
     const result = await Promise.all(
       Object.entries(settings).map(([key, value]) => this.setSetting(key, value)),
     );
-    if (user) {
-      const keys = Object.keys(settings).join(', ');
-      await this.logActivity(
-        user,
-        'UPDATE_SETTINGS',
-        'System Settings',
-        `Mengubah pengaturan sistem: ${keys}`,
-        ip,
-      );
-    }
     return result;
   }
 
@@ -109,13 +99,24 @@ export class SettingsService {
   }
 
   getPackageVersions() {
-    const backendPackage = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
-    const frontendPackage = JSON.parse(readFileSync(join(process.cwd(), '..', 'frontend', 'package.json'), 'utf8'));
+    let backendVersion = '0.0.0';
+    let frontendVersion = '0.0.0';
 
-    return {
-      backendVersion: backendPackage.version ?? '0.0.0',
-      frontendVersion: frontendPackage.version ?? '0.0.0',
-    };
+    try {
+      const backendPackage = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf8'));
+      backendVersion = backendPackage.version ?? '0.0.0';
+    } catch (e) {
+      console.warn('Could not read backend package.json');
+    }
+
+    try {
+      const frontendPackage = JSON.parse(readFileSync(join(process.cwd(), '..', 'frontend', 'package.json'), 'utf8'));
+      frontendVersion = frontendPackage.version ?? '0.0.0';
+    } catch (e) {
+      console.warn('Could not read frontend package.json');
+    }
+
+    return { backendVersion, frontendVersion };
   }
 
   async getSystemInfo() {
@@ -277,16 +278,6 @@ export class SettingsService {
         ingredients: deletedIngredients.count,
       };
     });
-
-    if (user) {
-      await this.logActivity(
-        user,
-        'RESET_DEMO_DATA',
-        'System Settings & Data',
-        'Reset seluruh data operasional ke demo/sample data.',
-        ip,
-      );
-    }
 
     return {
       success: true,
@@ -540,44 +531,10 @@ export class SettingsService {
       return created;
     });
 
-    if (user) {
-      await this.logActivity(
-        user,
-        'RESTORE_BACKUP',
-        'System Settings & Data',
-        'Restore database dari backup JSON berhasil.',
-        ip,
-      );
-    }
-
     return {
       success: true,
       summary,
     };
-  }
-
-  async logActivity(
-    user: { id: string; email: string; name: string } | null,
-    action: string,
-    target: string,
-    details?: string,
-    ipAddress?: string,
-  ) {
-    try {
-      await this.prisma.auditLog.create({
-        data: {
-          userId: user?.id,
-          userEmail: user?.email,
-          userName: user?.name,
-          action,
-          target,
-          details,
-          ipAddress,
-        },
-      });
-    } catch (e) {
-      console.error('Failed to write audit log:', e);
-    }
   }
 
   async getAuditLogs() {

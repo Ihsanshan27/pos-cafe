@@ -13,7 +13,7 @@ export class MenusService {
   ) {}
 
   async create(createMenuDto: CreateMenuDto) {
-    const { ingredients, ...menuData } = createMenuDto;
+    const { ingredients, modifierGroups, ...menuData } = createMenuDto;
     
     return this.prisma.menu.create({
       data: {
@@ -24,11 +24,29 @@ export class MenusService {
             ingredientId: item.ingredientId,
           })) || [],
         },
+        modifierGroups: {
+          create: modifierGroups?.map((group) => ({
+            name: group.name,
+            isRequired: group.isRequired,
+            isMultiple: group.isMultiple,
+            options: {
+              create: group.options.map((opt) => ({
+                name: opt.name,
+                price: opt.price,
+              })),
+            },
+          })) || [],
+        },
       },
       include: {
         ingredients: {
           include: {
             ingredient: true,
+          },
+        },
+        modifierGroups: {
+          include: {
+            options: true,
           },
         },
       },
@@ -42,6 +60,11 @@ export class MenusService {
         ingredients: {
           include: {
             ingredient: true,
+          },
+        },
+        modifierGroups: {
+          include: {
+            options: true,
           },
         },
         outletMenus: outletId ? { where: { outletId } } : true,
@@ -77,6 +100,11 @@ export class MenusService {
             ingredient: true,
           },
         },
+        modifierGroups: {
+          include: {
+            options: true,
+          },
+        },
         outletMenus: outletId ? { where: { outletId } } : true,
       },
     });
@@ -102,11 +130,17 @@ export class MenusService {
 
   async update(id: string, updateMenuDto: UpdateMenuDto, user?: any, ip?: string) {
     const oldMenu = await this.prisma.menu.findUnique({ where: { id } });
-    const { ingredients, ...menuData } = updateMenuDto;
+    const { ingredients, modifierGroups, ...menuData } = updateMenuDto;
 
     const result = await this.prisma.$transaction(async (tx) => {
       if (ingredients) {
         await tx.recipeItem.deleteMany({
+          where: { menuId: id },
+        });
+      }
+
+      if (modifierGroups) {
+        await tx.menuModifierGroup.deleteMany({
           where: { menuId: id },
         });
       }
@@ -123,11 +157,31 @@ export class MenusService {
               })),
             },
           }),
+          ...(modifierGroups && {
+            modifierGroups: {
+              create: modifierGroups.map((group) => ({
+                name: group.name,
+                isRequired: group.isRequired,
+                isMultiple: group.isMultiple,
+                options: {
+                  create: group.options.map((opt) => ({
+                    name: opt.name,
+                    price: opt.price,
+                  })),
+                },
+              })),
+            },
+          }),
         },
         include: {
           ingredients: {
             include: {
               ingredient: true,
+            },
+          },
+          modifierGroups: {
+            include: {
+              options: true,
             },
           },
         },
@@ -142,13 +196,6 @@ export class MenusService {
       if (menuData.sellingPrice && Number(menuData.sellingPrice) !== Number(oldMenu.sellingPrice)) {
         changes.push(`Harga Global: ${oldMenu.sellingPrice} -> ${menuData.sellingPrice}`);
       }
-      await this.settingsService.logActivity(
-        user,
-        'UPDATE_MENU',
-        `Menu: ${result.name}`,
-        changes.join(', ') || 'Update detail/resep menu',
-        ip,
-      );
     }
 
     return result;
@@ -200,13 +247,6 @@ export class MenusService {
       }
 
       const outlet = await this.prisma.outlet.findUnique({ where: { id: dto.outletId } });
-      await this.settingsService.logActivity(
-        user,
-        'OVERRIDE_MENU_BRANCH',
-        `Menu: ${menu.name} (Outlet: ${outlet?.name || dto.outletId})`,
-        details,
-        ip,
-      );
     }
 
     return result;
@@ -225,13 +265,6 @@ export class MenusService {
     });
 
     if (user && menu) {
-      await this.settingsService.logActivity(
-        user,
-        'DELETE_MENU_BRANCH_OVERRIDE',
-        `Menu: ${menu.name} (Outlet: ${outlet?.name || outletId})`,
-        'Override harga/status cabang dihapus (kembali ke default global)',
-        ip,
-      );
     }
 
     return result;
@@ -244,13 +277,6 @@ export class MenusService {
     });
 
     if (user && menu) {
-      await this.settingsService.logActivity(
-        user,
-        'DELETE_MENU',
-        `Menu: ${menu.name}`,
-        `Menghapus menu dengan harga global ${menu.sellingPrice}`,
-        ip,
-      );
     }
 
     return result;

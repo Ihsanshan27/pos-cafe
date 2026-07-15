@@ -41,10 +41,6 @@ let SettingsService = class SettingsService {
     }
     async setManySettings(settings, user, ip) {
         const result = await Promise.all(Object.entries(settings).map(([key, value]) => this.setSetting(key, value)));
-        if (user) {
-            const keys = Object.keys(settings).join(', ');
-            await this.logActivity(user, 'UPDATE_SETTINGS', 'System Settings', `Mengubah pengaturan sistem: ${keys}`, ip);
-        }
         return result;
     }
     async getAllowRegistration() {
@@ -95,12 +91,23 @@ let SettingsService = class SettingsService {
         }));
     }
     getPackageVersions() {
-        const backendPackage = JSON.parse((0, fs_1.readFileSync)((0, path_1.join)(process.cwd(), 'package.json'), 'utf8'));
-        const frontendPackage = JSON.parse((0, fs_1.readFileSync)((0, path_1.join)(process.cwd(), '..', 'frontend', 'package.json'), 'utf8'));
-        return {
-            backendVersion: backendPackage.version ?? '0.0.0',
-            frontendVersion: frontendPackage.version ?? '0.0.0',
-        };
+        let backendVersion = '0.0.0';
+        let frontendVersion = '0.0.0';
+        try {
+            const backendPackage = JSON.parse((0, fs_1.readFileSync)((0, path_1.join)(process.cwd(), 'package.json'), 'utf8'));
+            backendVersion = backendPackage.version ?? '0.0.0';
+        }
+        catch (e) {
+            console.warn('Could not read backend package.json');
+        }
+        try {
+            const frontendPackage = JSON.parse((0, fs_1.readFileSync)((0, path_1.join)(process.cwd(), '..', 'frontend', 'package.json'), 'utf8'));
+            frontendVersion = frontendPackage.version ?? '0.0.0';
+        }
+        catch (e) {
+            console.warn('Could not read frontend package.json');
+        }
+        return { backendVersion, frontendVersion };
     }
     async getSystemInfo() {
         const [{ backendVersion, frontendVersion }, appVersionSetting, logRetentionSetting] = await Promise.all([
@@ -248,9 +255,6 @@ let SettingsService = class SettingsService {
                 ingredients: deletedIngredients.count,
             };
         });
-        if (user) {
-            await this.logActivity(user, 'RESET_DEMO_DATA', 'System Settings & Data', 'Reset seluruh data operasional ke demo/sample data.', ip);
-        }
         return {
             success: true,
             summary,
@@ -485,31 +489,10 @@ let SettingsService = class SettingsService {
             }
             return created;
         });
-        if (user) {
-            await this.logActivity(user, 'RESTORE_BACKUP', 'System Settings & Data', 'Restore database dari backup JSON berhasil.', ip);
-        }
         return {
             success: true,
             summary,
         };
-    }
-    async logActivity(user, action, target, details, ipAddress) {
-        try {
-            await this.prisma.auditLog.create({
-                data: {
-                    userId: user?.id,
-                    userEmail: user?.email,
-                    userName: user?.name,
-                    action,
-                    target,
-                    details,
-                    ipAddress,
-                },
-            });
-        }
-        catch (e) {
-            console.error('Failed to write audit log:', e);
-        }
     }
     async getAuditLogs() {
         return this.prisma.auditLog.findMany({

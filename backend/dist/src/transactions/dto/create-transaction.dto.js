@@ -17,6 +17,7 @@ class TransactionItemDto {
     menuId;
     quantity;
     notes;
+    modifiers;
 }
 exports.TransactionItemDto = TransactionItemDto;
 __decorate([
@@ -35,6 +36,10 @@ __decorate([
     (0, class_validator_1.MaxLength)(300),
     __metadata("design:type", String)
 ], TransactionItemDto.prototype, "notes", void 0);
+__decorate([
+    (0, class_validator_1.IsOptional)(),
+    __metadata("design:type", Object)
+], TransactionItemDto.prototype, "modifiers", void 0);
 class CreateTransactionDto {
     items;
     status;

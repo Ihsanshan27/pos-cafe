@@ -20,9 +20,9 @@ export declare class SettingsController {
         imageUrl: string;
     }>;
     getSystemInfo(): Promise<{
-        appVersion: any;
-        backendVersion: any;
-        frontendVersion: any;
+        appVersion: string;
+        backendVersion: string;
+        frontendVersion: string;
         logRetentionDays: number;
         generatedAt: string;
     }>;
@@ -30,9 +30,9 @@ export declare class SettingsController {
         meta: {
             exportedAt: string;
             systemInfo: {
-                appVersion: any;
-                backendVersion: any;
-                frontendVersion: any;
+                appVersion: string;
+                backendVersion: string;
+                frontendVersion: string;
                 logRetentionDays: number;
                 generatedAt: string;
             };
@@ -52,6 +52,7 @@ export declare class SettingsController {
             categories: {
                 id: string;
                 name: string;
+                isStickerPrintable: boolean;
             }[];
             ingredients: {
                 id: string;
@@ -65,6 +66,7 @@ export declare class SettingsController {
                 category: {
                     id: string;
                     name: string;
+                    isStickerPrintable: boolean;
                 } | null;
                 ingredients: {
                     id: string;
@@ -182,6 +184,7 @@ export declare class SettingsController {
                     priceAtSale: import("@prisma/client-runtime-utils").Decimal;
                     subtotal: import("@prisma/client-runtime-utils").Decimal;
                     transactionId: string;
+                    modifiers: import("@prisma/client/runtime/client").JsonValue | null;
                 })[];
             } & {
                 id: string;

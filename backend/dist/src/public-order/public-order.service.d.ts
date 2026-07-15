@@ -26,6 +26,7 @@ export declare class PublicOrderService {
         categories: {
             id: string;
             name: string;
+            isStickerPrintable: boolean;
         }[];
         menus: {
             sellingPrice: import("@prisma/client-runtime-utils").Decimal;
@@ -33,6 +34,7 @@ export declare class PublicOrderService {
             category: {
                 id: string;
                 name: string;
+                isStickerPrintable: boolean;
             } | null;
             ingredients: ({
                 ingredient: {
@@ -137,6 +139,7 @@ export declare class PublicOrderService {
             priceAtSale: import("@prisma/client-runtime-utils").Decimal;
             subtotal: import("@prisma/client-runtime-utils").Decimal;
             transactionId: string;
+            modifiers: import("@prisma/client/runtime/client").JsonValue | null;
         })[];
         id: string;
         createdAt: Date;

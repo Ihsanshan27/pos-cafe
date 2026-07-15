@@ -25,22 +25,27 @@ import { resolveMediaUrl } from '../lib/api';
 import { useActiveOutlet } from '../hooks/useActiveOutlet';
 
 const navItems = [
-  { to: '/', icon: LayoutDashboard, label: 'Dashboard', end: true, roles: ['OWNER', 'MANAGER'], featureKey: 'dashboard' as FeatureKey },
-  { to: '/pos', icon: ShoppingCart, label: 'Point of Sale', badge: 'POS', roles: ['OWNER', 'MANAGER', 'CASHIER'], featureKey: 'pos' as FeatureKey },
-  { to: '/transactions', icon: Receipt, label: 'Transactions', roles: ['OWNER', 'MANAGER', 'CASHIER'], featureKey: 'transactions' as FeatureKey },
-  { to: '/kitchen', icon: ChefHat, label: 'KDS', badge: 'NEW', roles: ['OWNER', 'MANAGER', 'CASHIER', 'BARISTA'], featureKey: 'kitchen' as FeatureKey },
-  { to: '/menus', icon: UtensilsCrossed, label: 'Menus', roles: ['OWNER', 'MANAGER'], featureKey: 'menus' as FeatureKey },
-  { to: '/categories', icon: Tags, label: 'Categories', roles: ['OWNER', 'MANAGER'], featureKey: 'categories' as FeatureKey },
-  { to: '/ingredients', icon: Package, label: 'Ingredients', roles: ['OWNER', 'MANAGER'], featureKey: 'ingredients' as FeatureKey },
-  { to: '/inventory-logs', icon: ClipboardList, label: 'Inventory Logs', roles: ['OWNER', 'MANAGER'], featureKey: 'inventory-logs' as FeatureKey },
-  { to: '/discounts', icon: PercentCircle, label: 'Discounts', roles: ['OWNER', 'MANAGER'], featureKey: 'discounts' as FeatureKey },
-  { to: '/expenses', icon: Wallet, label: 'Expenses', roles: ['OWNER', 'MANAGER'], featureKey: 'expenses' as FeatureKey },
-  { to: '/customers', icon: Users, label: 'Customers', roles: ['OWNER', 'MANAGER', 'CASHIER'], featureKey: 'customers' as FeatureKey },
-  { to: '/outlets', icon: Store, label: 'Outlets', roles: ['OWNER', 'MANAGER'], featureKey: 'outlets' as FeatureKey },
-  { to: '/suppliers', icon: Truck, label: 'Suppliers', roles: ['OWNER', 'MANAGER'], featureKey: 'suppliers' as FeatureKey },
-  { to: '/purchase-orders', icon: ShoppingBag, label: 'Purchase Orders', roles: ['OWNER', 'MANAGER'], featureKey: 'purchase-orders' as FeatureKey },
-  { to: '/users', icon: User, label: 'Staffs', roles: ['OWNER', 'MANAGER'], featureKey: 'users' as FeatureKey },
-  { to: '/settings', icon: Settings, label: 'Settings', roles: ['OWNER'] },
+  { to: '/', icon: LayoutDashboard, label: 'Dashboard', category: 'Main', end: true, roles: ['OWNER', 'MANAGER'], featureKey: 'dashboard' as FeatureKey },
+  { to: '/pos', icon: ShoppingCart, label: 'Point of Sale', category: 'Main', badge: 'POS', roles: ['OWNER', 'MANAGER', 'CASHIER'], featureKey: 'pos' as FeatureKey },
+  { to: '/kitchen', icon: ChefHat, label: 'KDS', category: 'Main', badge: 'NEW', roles: ['OWNER', 'MANAGER', 'CASHIER', 'BARISTA'], featureKey: 'kitchen' as FeatureKey },
+
+  { to: '/transactions', icon: Receipt, label: 'Transactions', category: 'Sales & Finance', roles: ['OWNER', 'MANAGER', 'CASHIER'], featureKey: 'transactions' as FeatureKey },
+  { to: '/expenses', icon: Wallet, label: 'Expenses', category: 'Sales & Finance', roles: ['OWNER', 'MANAGER'], featureKey: 'expenses' as FeatureKey },
+
+  { to: '/menus', icon: UtensilsCrossed, label: 'Menus', category: 'Catalog', roles: ['OWNER', 'MANAGER'], featureKey: 'menus' as FeatureKey },
+  { to: '/categories', icon: Tags, label: 'Categories', category: 'Catalog', roles: ['OWNER', 'MANAGER'], featureKey: 'categories' as FeatureKey },
+  { to: '/discounts', icon: PercentCircle, label: 'Discounts', category: 'Catalog', roles: ['OWNER', 'MANAGER'], featureKey: 'discounts' as FeatureKey },
+
+  { to: '/ingredients', icon: Package, label: 'Ingredients', category: 'Inventory', roles: ['OWNER', 'MANAGER'], featureKey: 'ingredients' as FeatureKey },
+  { to: '/inventory-logs', icon: ClipboardList, label: 'Inventory Logs', category: 'Inventory', roles: ['OWNER', 'MANAGER'], featureKey: 'inventory-logs' as FeatureKey },
+  { to: '/suppliers', icon: Truck, label: 'Suppliers', category: 'Inventory', roles: ['OWNER', 'MANAGER'], featureKey: 'suppliers' as FeatureKey },
+  { to: '/purchase-orders', icon: ShoppingBag, label: 'Purchase Orders', category: 'Inventory', roles: ['OWNER', 'MANAGER'], featureKey: 'purchase-orders' as FeatureKey },
+
+  { to: '/customers', icon: Users, label: 'Customers', category: 'People', roles: ['OWNER', 'MANAGER', 'CASHIER'], featureKey: 'customers' as FeatureKey },
+  { to: '/users', icon: User, label: 'Staffs', category: 'People', roles: ['OWNER', 'MANAGER'], featureKey: 'users' as FeatureKey },
+
+  { to: '/outlets', icon: Store, label: 'Outlets', category: 'System', roles: ['OWNER', 'MANAGER'], featureKey: 'outlets' as FeatureKey },
+  { to: '/settings', icon: Settings, label: 'Settings', category: 'System', roles: ['OWNER'] },
 ];
 
 export default function Sidebar() {
@@ -84,43 +89,58 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <div className="sidebar-section-label">Navigation</div>
-
-      {outlets.length > 0 && user?.role !== 'BARISTA' && (
-        <div style={{ marginBottom: '0.75rem' }}>
-          <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.35rem', fontWeight: 700 }}>
-            Active Outlet
+      <div style={{ flex: 1, overflowY: 'auto', paddingRight: '0.25rem' }}>
+        {outlets.length > 0 && user?.role !== 'BARISTA' && (
+          <div style={{ marginBottom: '1.25rem' }}>
+            <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.35rem', fontWeight: 700 }}>
+              Active Outlet
+            </div>
+            <select
+              value={activeOutletId}
+              onChange={(e) => setActiveOutletId(e.target.value)}
+              disabled={isLockedToUserOutlet}
+              style={{ width: '100%' }}
+            >
+              {outlets.map((outlet) => (
+                <option key={outlet.id} value={outlet.id}>
+                  {outlet.name}
+                </option>
+              ))}
+            </select>
           </div>
-          <select
-            value={activeOutletId}
-            onChange={(e) => setActiveOutletId(e.target.value)}
-            disabled={isLockedToUserOutlet}
-            style={{ width: '100%' }}
-          >
-            {outlets.map((outlet) => (
-              <option key={outlet.id} value={outlet.id}>
-                {outlet.name}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
+        )}
 
-      {navItems
-        .filter((item) => item.roles.includes(user?.role as string))
-        .filter((item) => !item.featureKey || !isFeatureDisabled(disabledFeatures, item.featureKey))
-        .map(({ to, icon: Icon, label, badge, end }) => (
-        <NavLink
-          key={to}
-          to={to}
-          end={end}
-          className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
-        >
-          <Icon />
-          <span>{label}</span>
-          {badge && <span className="nav-badge">{badge}</span>}
-        </NavLink>
-      ))}
+        {Array.from(new Set(navItems.map(item => item.category))).map(category => {
+          const items = navItems
+            .filter(item => item.category === category)
+            .filter((item) => item.roles.includes(user?.role as string))
+            .filter((item) => !item.featureKey || !isFeatureDisabled(disabledFeatures, item.featureKey));
+
+          if (items.length === 0) return null;
+
+          return (
+            <div key={category} style={{ marginBottom: '1.5rem' }}>
+              <div className="sidebar-section-label" style={{ marginBottom: '0.5rem', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
+                {category}
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                {items.map(({ to, icon: Icon, label, badge, end }) => (
+                  <NavLink
+                    key={to}
+                    to={to}
+                    end={end}
+                    className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
+                  >
+                    <Icon />
+                    <span>{label}</span>
+                    {badge && <span className="nav-badge">{badge}</span>}
+                  </NavLink>
+                ))}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {/* User info + Logout */}
       <div style={{ marginTop: 'auto' }}>

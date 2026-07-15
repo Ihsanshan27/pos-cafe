@@ -3,6 +3,7 @@ export declare class TransactionItemDto {
     menuId: string;
     quantity: number;
     notes?: string;
+    modifiers?: any;
 }
 export declare class CreateTransactionDto {
     items: TransactionItemDto[];

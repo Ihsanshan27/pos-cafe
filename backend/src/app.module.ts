@@ -1,7 +1,9 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule } from './prisma/prisma.module';
+import { AuditInterceptor } from './common/audit.interceptor';
 import { IngredientsModule } from './ingredients/ingredients.module';
 import { MenusModule } from './menus/menus.module';
 import { TransactionsModule } from './transactions/transactions.module';
@@ -22,6 +24,12 @@ import { PublicOrderModule } from './public-order/public-order.module';
 @Module({
   imports: [PrismaModule, AuthModule, IngredientsModule, MenusModule, TransactionsModule, ExpensesModule, UsersModule, CategoriesModule, DiscountsModule, ShiftsModule, SettingsModule, CustomersModule, InventoryLogsModule, OutletsModule, SuppliersModule, PurchaseOrdersModule, PublicOrderModule],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: AuditInterceptor,
+    },
+  ],
 })
 export class AppModule {}

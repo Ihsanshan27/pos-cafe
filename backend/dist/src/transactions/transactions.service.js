@@ -186,6 +186,7 @@ let TransactionsService = class TransactionsService {
                     priceAtSale,
                     subtotal,
                     notes: orderItem.notes,
+                    modifiers: orderItem.modifiers || null,
                 };
             });
             const pricing = (0, pricing_util_1.calculatePricing)(totalAmount, discountAmount || 0, {
@@ -423,9 +424,6 @@ let TransactionsService = class TransactionsService {
                 }
             }
             const [withMetadata] = await this.attachPricingMetadata([updatedTx]);
-            if (user) {
-                await this.settingsService.logActivity(user, 'VOID_TRANSACTION', `Transaksi: ${transaction.orderNumber || transaction.id}`, `Void transaksi oleh ${user.name || user.email}. Total: Rp ${transaction.totalAmount}. Bahan baku direstock.`, ip);
-            }
             return withMetadata;
         });
     }

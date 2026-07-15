@@ -75,6 +75,7 @@ export declare class TransactionsController {
             priceAtSale: import("@prisma/client-runtime-utils").Decimal;
             subtotal: import("@prisma/client-runtime-utils").Decimal;
             transactionId: string;
+            modifiers: import("@prisma/client/runtime/client").JsonValue | null;
         })[];
         id: string;
         createdAt: Date;
@@ -170,6 +171,7 @@ export declare class TransactionsController {
             priceAtSale: import("@prisma/client-runtime-utils").Decimal;
             subtotal: import("@prisma/client-runtime-utils").Decimal;
             transactionId: string;
+            modifiers: import("@prisma/client/runtime/client").JsonValue | null;
         })[];
         id: string;
         createdAt: Date;
@@ -266,6 +268,7 @@ export declare class TransactionsController {
             priceAtSale: import("@prisma/client-runtime-utils").Decimal;
             subtotal: import("@prisma/client-runtime-utils").Decimal;
             transactionId: string;
+            modifiers: import("@prisma/client/runtime/client").JsonValue | null;
         })[];
         id: string;
         createdAt: Date;
@@ -316,6 +319,7 @@ export declare class TransactionsController {
             priceAtSale: import("@prisma/client-runtime-utils").Decimal;
             subtotal: import("@prisma/client-runtime-utils").Decimal;
             transactionId: string;
+            modifiers: import("@prisma/client/runtime/client").JsonValue | null;
         })[];
     } & {
         id: string;
@@ -414,6 +418,7 @@ export declare class TransactionsController {
             priceAtSale: import("@prisma/client-runtime-utils").Decimal;
             subtotal: import("@prisma/client-runtime-utils").Decimal;
             transactionId: string;
+            modifiers: import("@prisma/client/runtime/client").JsonValue | null;
         })[];
         id: string;
         createdAt: Date;

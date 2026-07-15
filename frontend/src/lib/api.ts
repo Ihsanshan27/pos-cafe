@@ -31,7 +31,12 @@ export function clearStoredUser() {
 export function resolveMediaUrl(path?: string) {
   if (!path) return '';
   if (path.startsWith('http://') || path.startsWith('https://')) return path;
-  return `${baseURL}${path}`;
+  
+  let base = baseURL;
+  if (base.endsWith('/api/v1')) {
+    base = base.replace(/\/api\/v1$/, '');
+  }
+  return `${base}${path}`;
 }
 
 const api = axios.create({
@@ -239,6 +244,7 @@ export interface CreateMenuPayload {
   sellingPrice: number;
   imageUrl?: string;
   ingredients?: { ingredientId: string; quantity: number }[];
+  modifierGroups?: any[];
 }
 
 export const menuApi = {

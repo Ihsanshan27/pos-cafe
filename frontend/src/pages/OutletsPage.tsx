@@ -9,7 +9,9 @@ const emptyTableForm = { code: '', label: '', isActive: true };
 export default function OutletsPage() {
   const qc = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
   const [selectedOutletId, setSelectedOutletId] = useState<string>('');
+  const [editingOutletId, setEditingOutletId] = useState<string>('');
   const [form, setForm] = useState(emptyForm);
   const [tableForm, setTableForm] = useState(emptyTableForm);
 
@@ -24,6 +26,17 @@ export default function OutletsPage() {
       qc.invalidateQueries({ queryKey: ['outlets'] });
       setForm(emptyForm);
       setIsOpen(false);
+    },
+  });
+
+  const updateMut = useMutation({
+    mutationFn: () => outletApi.update(editingOutletId, form),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['outlets'] });
+      setForm(emptyForm);
+      setIsOpen(false);
+      setIsEditing(false);
+      setEditingOutletId('');
     },
   });
 
@@ -47,7 +60,12 @@ export default function OutletsPage() {
           <h2>Outlets</h2>
           <p>Kelola cabang, slug outlet, dan QR meja untuk order publik.</p>
         </div>
-        <button className="btn btn-primary" onClick={() => setIsOpen(true)}>
+        <button className="btn btn-primary" onClick={() => {
+          setForm(emptyForm);
+          setIsEditing(false);
+          setEditingOutletId('');
+          setIsOpen(true);
+        }}>
           <Plus size={18} /> Tambah Outlet
         </button>
       </div>
@@ -71,12 +89,31 @@ export default function OutletsPage() {
                       {outlet._count?.users || 0} staff • {outlet._count?.transactions || 0} transaksi
                     </div>
                   </div>
-                  <button
-                    className="btn btn-danger btn-sm"
-                    onClick={() => { if (confirm(`Hapus outlet ${outlet.name}?`)) deleteMut.mutate(outlet.id); }}
-                  >
-                    <Trash2 size={14} /> Hapus
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <button
+                      className="btn btn-secondary btn-sm"
+                      onClick={() => {
+                        setForm({
+                          name: outlet.name,
+                          slug: outlet.slug,
+                          address: outlet.address || '',
+                          phone: outlet.phone || '',
+                          isActive: outlet.isActive,
+                        });
+                        setEditingOutletId(outlet.id);
+                        setIsEditing(true);
+                        setIsOpen(true);
+                      }}
+                    >
+                      Edit
+                    </button>
+                    <button
+                      className="btn btn-danger btn-sm"
+                      onClick={() => { if (confirm(`Hapus outlet ${outlet.name}?`)) deleteMut.mutate(outlet.id); }}
+                    >
+                      <Trash2 size={14} /> Hapus
+                    </button>
+                  </div>
                 </div>
 
                 <div style={{ marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
@@ -117,10 +154,10 @@ export default function OutletsPage() {
         )}
       </div>
 
-      {isOpen && (
+    {isOpen && (
         <div className="modal-overlay" onClick={() => setIsOpen(false)}>
           <div className="modal" onClick={(e) => e.stopPropagation()}>
-            <h3>Tambah Outlet</h3>
+            <h3>{isEditing ? 'Edit Outlet' : 'Tambah Outlet'}</h3>
             <div className="form-group">
               <label>Nama Outlet</label>
               <input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} />
@@ -137,9 +174,26 @@ export default function OutletsPage() {
               <label>Telepon</label>
               <input value={form.phone} onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))} />
             </div>
+            {isEditing && (
+              <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', cursor: 'pointer' }}>
+                <input 
+                  type="checkbox" 
+                  checked={form.isActive} 
+                  onChange={(e) => setForm((prev) => ({ ...prev, isActive: e.target.checked }))} 
+                  style={{ width: '1rem', height: '1rem' }} 
+                />
+                <label style={{ margin: 0 }}>Outlet Aktif</label>
+              </div>
+            )}
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={() => setIsOpen(false)}>Batal</button>
-              <button className="btn btn-primary" onClick={() => createMut.mutate()} disabled={!form.name || !form.slug || createMut.isPending}>Simpan</button>
+              <button 
+                className="btn btn-primary" 
+                onClick={() => isEditing ? updateMut.mutate() : createMut.mutate()} 
+                disabled={!form.name || !form.slug || createMut.isPending || updateMut.isPending}
+              >
+                {isEditing ? 'Simpan Perubahan' : 'Simpan'}
+              </button>
             </div>
           </div>
         </div>

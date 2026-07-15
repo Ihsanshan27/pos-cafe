@@ -3,7 +3,7 @@ dotenv.config();
 
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, RequestMethod } from '@nestjs/common';
 import { join } from 'path';
 import * as express from 'express';
 import cookieParser from 'cookie-parser';
@@ -39,6 +39,8 @@ async function bootstrap() {
       forbidNonWhitelisted: true,
     }),
   );
+
+  app.setGlobalPrefix('api/v1');
 
   await app.listen(process.env.PORT ?? 3000);
 }

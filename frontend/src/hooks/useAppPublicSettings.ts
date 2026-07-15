@@ -19,6 +19,8 @@ const SETTING_KEYS = [
   'CONFIRM_BEFORE_CHECKOUT',
   'CONFIRM_BEFORE_VOID',
   'AUTO_PRINT_RECEIPT',
+  'ENABLE_CUP_STICKERS',
+  'PRINTER_PAPER_SIZE',
   'ENABLED_PAYMENT_METHODS',
   'DEFAULT_PAYMENT_METHOD',
   'QRIS_PAYMENT_NOTE',
@@ -65,6 +67,8 @@ type PublicSettingsResult = {
   confirmBeforeCheckout: boolean;
   confirmBeforeVoid: boolean;
   autoPrintReceipt: boolean;
+  enableCupStickers: boolean;
+  printerPaperSize: '58mm' | '80mm';
   enabledPaymentMethods: PaymentMethod[];
   defaultPaymentMethod: PaymentMethod;
   qrisPaymentNote: string;
@@ -108,6 +112,8 @@ const DEFAULT_SETTINGS: SettingsMap = {
   CONFIRM_BEFORE_CHECKOUT: 'true',
   CONFIRM_BEFORE_VOID: 'true',
   AUTO_PRINT_RECEIPT: 'false',
+  ENABLE_CUP_STICKERS: 'false',
+  PRINTER_PAPER_SIZE: '58mm',
   ENABLED_PAYMENT_METHODS: JSON.stringify(ALL_PAYMENT_METHODS),
   DEFAULT_PAYMENT_METHOD: 'CASH',
   QRIS_PAYMENT_NOTE: '',
@@ -193,6 +199,8 @@ export function useAppPublicSettings(): PublicSettingsResult {
     confirmBeforeCheckout: (settings.CONFIRM_BEFORE_CHECKOUT ?? 'true') === 'true',
     confirmBeforeVoid: (settings.CONFIRM_BEFORE_VOID ?? 'true') === 'true',
     autoPrintReceipt: (settings.AUTO_PRINT_RECEIPT ?? 'false') === 'true',
+    enableCupStickers: (settings.ENABLE_CUP_STICKERS ?? 'false') === 'true',
+    printerPaperSize: settings.PRINTER_PAPER_SIZE === '80mm' ? '80mm' : '58mm',
     enabledPaymentMethods,
     defaultPaymentMethod,
     qrisPaymentNote: settings.QRIS_PAYMENT_NOTE || '',

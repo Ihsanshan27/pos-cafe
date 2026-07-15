@@ -1,6 +1,6 @@
 import { IsString, IsNumber, Min, IsOptional, ValidateNested, IsArray } from 'class-validator';
 import { Type } from 'class-transformer';
-import { RecipeItemDto } from './create-menu.dto';
+import { RecipeItemDto, ModifierGroupDto } from './create-menu.dto';
 
 export class UpdateMenuDto {
   @IsOptional()
@@ -28,4 +28,10 @@ export class UpdateMenuDto {
 
   @IsOptional()
   categoryId?: string | null;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ModifierGroupDto)
+  modifierGroups?: ModifierGroupDto[];
 }
