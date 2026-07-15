@@ -188,12 +188,12 @@ export declare class SettingsService {
                         sellingPrice: import("@prisma/client-runtime-utils").Decimal;
                         imageUrl: string | null;
                         categoryId: string | null;
-                    };
+                    } | null;
                 } & {
                     id: string;
                     quantity: number;
                     notes: string | null;
-                    menuId: string;
+                    menuId: string | null;
                     priceAtSale: import("@prisma/client-runtime-utils").Decimal;
                     subtotal: import("@prisma/client-runtime-utils").Decimal;
                     transactionId: string;

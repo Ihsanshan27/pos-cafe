@@ -63,10 +63,6 @@ let OutletsService = class OutletsService {
         });
     }
     async remove(id) {
-        const relatedTransactions = await this.prisma.transaction.count({ where: { outletId: id } });
-        if (relatedTransactions > 0) {
-            throw new common_1.BadRequestException('Outlet cannot be deleted because it already has transactions');
-        }
         return this.prisma.outlet.delete({ where: { id } });
     }
     createTableQr(outletId, data) {

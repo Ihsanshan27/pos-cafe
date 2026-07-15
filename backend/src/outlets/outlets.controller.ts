@@ -31,6 +31,7 @@ export class OutletsController {
     return this.outletsService.update(id, body);
   }
 
+  @Roles(Role.OWNER)
   @Delete(':id')
   remove(@Param('id') id: string) {
     return this.outletsService.remove(id);

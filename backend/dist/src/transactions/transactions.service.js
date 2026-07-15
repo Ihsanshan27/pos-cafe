@@ -392,6 +392,8 @@ let TransactionsService = class TransactionsService {
                 }
             });
             for (const item of transaction.items) {
+                if (!item.menu)
+                    continue;
                 for (const recipeItem of item.menu.ingredients) {
                     const quantityToRestore = recipeItem.quantity * item.quantity;
                     if (transaction.outletId) {

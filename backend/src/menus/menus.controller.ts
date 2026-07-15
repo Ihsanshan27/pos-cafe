@@ -80,7 +80,7 @@ export class MenusController {
     return this.menusService.deleteOutletOverride(id, outletId, req.user, req.ip);
   }
 
-  @Roles(Role.OWNER, Role.MANAGER)
+  @Roles(Role.OWNER)
   @Delete(':id')
   remove(@Request() req: any, @Param('id') id: string) {
     return this.menusService.remove(id, req.user, req.ip);

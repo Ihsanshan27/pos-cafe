@@ -463,6 +463,7 @@ export class TransactionsService {
 
       // 2. Restock ingredients and write VOID log
       for (const item of transaction.items) {
+        if (!item.menu) continue;
         for (const recipeItem of item.menu.ingredients) {
           const quantityToRestore = recipeItem.quantity * item.quantity;
           

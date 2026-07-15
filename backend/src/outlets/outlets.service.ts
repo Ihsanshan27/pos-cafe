@@ -55,10 +55,6 @@ export class OutletsService {
   }
 
   async remove(id: string) {
-    const relatedTransactions = await this.prisma.transaction.count({ where: { outletId: id } });
-    if (relatedTransactions > 0) {
-      throw new BadRequestException('Outlet cannot be deleted because it already has transactions');
-    }
     return this.prisma.outlet.delete({ where: { id } });
   }
 
