@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { menuApi, ingredientApi, categoryApi, resolveMediaUrl, outletApi } from '../lib/api';
+import { modifierApi, menuApi, ingredientApi, categoryApi, resolveMediaUrl, outletApi } from '../lib/api';
 import type { Menu, CreateMenuPayload, Category } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 import { Plus, Search, Pencil, Trash2, UtensilsCrossed, X, Check, TrendingUp, Eye, MapPin } from 'lucide-react';
 
 function formatCurrency(val: number) {
@@ -10,9 +11,6 @@ function formatCurrency(val: number) {
 
 type RecipeRow = { ingredientId: string; quantity: string };
 
-type ModifierOptionForm = { name: string; price: string };
-type ModifierGroupForm = { name: string; isRequired: boolean; isMultiple: boolean; options: ModifierOptionForm[] };
-
 type FormData = {
   name: string;
   description: string;
@@ -20,12 +18,13 @@ type FormData = {
   imageUrl: string;
   categoryId: string;
   ingredients: RecipeRow[];
-  modifierGroups: ModifierGroupForm[];
+  modifierGroupIds: string[];
 };
 
-const emptyForm: FormData = { name: '', description: '', sellingPrice: '', imageUrl: '', categoryId: '', ingredients: [], modifierGroups: [] };
+const emptyForm: FormData = { name: '', description: '', sellingPrice: '', imageUrl: '', categoryId: '', ingredients: [], modifierGroupIds: [] };
 
 export default function MenusPage() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   const [search, setSearch] = useState('');
   const [modal, setModal] = useState<'create' | 'edit' | 'view' | 'overrides' | null>(null);
@@ -38,6 +37,7 @@ export default function MenusPage() {
   const { data: ingredients = [] } = useQuery({ queryKey: ['ingredients'], queryFn: () => ingredientApi.getAll() });
   const { data: categories = [] } = useQuery({ queryKey: ['categories'], queryFn: categoryApi.getAll });
   const { data: outlets = [] } = useQuery({ queryKey: ['outlets'], queryFn: outletApi.getAll });
+  const { data: modifiers = [] } = useQuery({ queryKey: ['modifiers'], queryFn: modifierApi.getAll });
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -51,12 +51,7 @@ export default function MenusPage() {
     imageUrl: f.imageUrl || undefined,
     categoryId: f.categoryId || null,
     ingredients: f.ingredients.filter((r) => r.ingredientId && r.quantity).map((r) => ({ ingredientId: r.ingredientId, quantity: Number(r.quantity) })),
-    modifierGroups: f.modifierGroups.map((g) => ({
-      name: g.name,
-      isRequired: g.isRequired,
-      isMultiple: g.isMultiple,
-      options: g.options.filter((o) => o.name).map((o) => ({ name: o.name, price: Number(o.price) || 0 })),
-    })).filter((g) => g.name && g.options.length > 0),
+    modifierGroupIds: f.modifierGroupIds,
   });
 
   const createMut = useMutation({
@@ -80,7 +75,11 @@ export default function MenusPage() {
   const deleteMut = useMutation({
     mutationFn: (id: string) => menuApi.delete(id),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['menus'] }); showToast('Menu deleted!'); },
-    onError: () => showToast('Failed to delete menu', 'error'),
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message;
+      alert(Array.isArray(msg) ? msg.join(', ') : msg || 'Failed to delete menu');
+      showToast('Failed to delete menu', 'error');
+    },
   });
 
   const uploadImageMut = useMutation({
@@ -113,12 +112,7 @@ export default function MenusPage() {
       imageUrl: m.imageUrl ?? '',
       categoryId: (m as any).categoryId ?? '',
       ingredients: m.ingredients.map((r) => ({ ingredientId: r.ingredientId, quantity: String(r.quantity) })),
-      modifierGroups: (m as any).modifierGroups?.map((g: any) => ({
-        name: g.name,
-        isRequired: g.isRequired,
-        isMultiple: g.isMultiple,
-        options: g.options.map((o: any) => ({ name: o.name, price: String(o.price) })),
-      })) || [],
+      modifierGroupIds: m.modifierGroups?.map((g: any) => g.id) || [],
     });
     setActiveTab('basic');
     setModal('edit');
@@ -129,20 +123,14 @@ export default function MenusPage() {
   const updateRecipeRow = (idx: number, key: keyof RecipeRow, val: string) =>
     setForm((f) => ({ ...f, ingredients: f.ingredients.map((r, i) => i === idx ? { ...r, [key]: val } : r) }));
 
-  const addModifierGroup = () => setForm(f => ({ ...f, modifierGroups: [...f.modifierGroups, { name: '', isRequired: false, isMultiple: false, options: [{ name: '', price: '0' }] }] }));
-  const removeModifierGroup = (idx: number) => setForm(f => ({ ...f, modifierGroups: f.modifierGroups.filter((_, i) => i !== idx) }));
-  const updateModifierGroup = (idx: number, key: keyof ModifierGroupForm, val: any) =>
-    setForm(f => ({ ...f, modifierGroups: f.modifierGroups.map((g, i) => i === idx ? { ...g, [key]: val } : g) }));
-
-  const addModifierOption = (gIdx: number) => setForm(f => ({
-    ...f, modifierGroups: f.modifierGroups.map((g, i) => i === gIdx ? { ...g, options: [...g.options, { name: '', price: '0' }] } : g)
-  }));
-  const removeModifierOption = (gIdx: number, oIdx: number) => setForm(f => ({
-    ...f, modifierGroups: f.modifierGroups.map((g, i) => i === gIdx ? { ...g, options: g.options.filter((_, j) => j !== oIdx) } : g)
-  }));
-  const updateModifierOption = (gIdx: number, oIdx: number, key: keyof ModifierOptionForm, val: string) => setForm(f => ({
-    ...f, modifierGroups: f.modifierGroups.map((g, i) => i === gIdx ? { ...g, options: g.options.map((o, j) => j === oIdx ? { ...o, [key]: val } : o) } : g)
-  }));
+  const toggleModifier = (id: string) => {
+    setForm(f => {
+      if (f.modifierGroupIds.includes(id)) {
+        return { ...f, modifierGroupIds: f.modifierGroupIds.filter(gid => gid !== id) };
+      }
+      return { ...f, modifierGroupIds: [...f.modifierGroupIds, id] };
+    });
+  };
 
   const filtered = menus.filter((m) => m.name.toLowerCase().includes(search.toLowerCase()));
 
@@ -454,70 +442,28 @@ export default function MenusPage() {
 
               {activeTab === 'modifiers' && (
                 <div style={{ marginTop: '0.5rem' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
-                    <label style={{ margin: 0 }}>Modifier Groups</label>
-                    <button className="btn btn-secondary btn-sm" onClick={addModifierGroup}><Plus size={13} /> Add Group</button>
-                  </div>
+                  <label style={{ display: 'block', marginBottom: '0.75rem', fontWeight: 600 }}>Tautkan General Modifiers</label>
                   
-                  {form.modifierGroups.length === 0 ? (
+                  {modifiers.length === 0 ? (
                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem', background: 'var(--bg-secondary)', borderRadius: '0.5rem' }}>
-                      Klik "Add Group" untuk membuat varian (Contoh: Pilihan Susu, Suhu, dsb).
+                      Belum ada modifier terdaftar. Buat modifier terlebih dahulu di menu "Modifiers".
                     </div>
                   ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      {form.modifierGroups.map((group, gIdx) => (
-                        <div key={gIdx} style={{ padding: '1rem', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '0.5rem' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.75rem' }}>
-                            <input
-                              type="text"
-                              placeholder="Group Name (e.g. Milk Type)"
-                              value={group.name}
-                              onChange={(e) => updateModifierGroup(gIdx, 'name', e.target.value)}
-                              style={{ flex: 1, marginRight: '0.5rem', fontWeight: 600, fontSize: '0.9rem' }}
-                              className="input"
-                            />
-                            <button className="btn btn-danger btn-icon btn-sm" onClick={() => removeModifierGroup(gIdx)}><X size={14} /></button>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                      {modifiers.map((mod: any) => (
+                        <label key={mod.id} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.75rem', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '0.5rem', cursor: 'pointer' }}>
+                          <input 
+                            type="checkbox" 
+                            checked={form.modifierGroupIds.includes(mod.id)} 
+                            onChange={() => toggleModifier(mod.id)}
+                          />
+                          <div>
+                            <div style={{ fontWeight: 600, fontSize: '0.9rem' }}>{mod.name}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              {mod.isRequired ? 'Wajib' : 'Opsional'} &bull; {mod.isMultiple ? 'Bisa Pilih Banyak' : 'Pilih Satu'} &bull; {mod.options?.length || 0} opsi
+                            </div>
                           </div>
-                          
-                          <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', margin: 0, cursor: 'pointer' }}>
-                              <input type="checkbox" checked={group.isRequired} onChange={(e) => updateModifierGroup(gIdx, 'isRequired', e.target.checked)} />
-                              Wajib Pilih (Required)
-                            </label>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', margin: 0, cursor: 'pointer' }}>
-                              <input type="checkbox" checked={group.isMultiple} onChange={(e) => updateModifierGroup(gIdx, 'isMultiple', e.target.checked)} />
-                              Bisa Pilih Banyak (Multiple)
-                            </label>
-                          </div>
-
-                          <div style={{ marginBottom: '0.5rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>Options</div>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                            {group.options.map((opt, oIdx) => (
-                              <div key={oIdx} style={{ display: 'flex', gap: '0.5rem' }}>
-                                <input
-                                  type="text"
-                                  placeholder="Option (e.g. Oat Milk)"
-                                  className="input"
-                                  style={{ flex: 1, padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
-                                  value={opt.name}
-                                  onChange={(e) => updateModifierOption(gIdx, oIdx, 'name', e.target.value)}
-                                />
-                                <input
-                                  type="number"
-                                  placeholder="+ Price"
-                                  className="input"
-                                  style={{ width: 100, padding: '0.4rem 0.6rem', fontSize: '0.85rem' }}
-                                  value={opt.price}
-                                  onChange={(e) => updateModifierOption(gIdx, oIdx, 'price', e.target.value)}
-                                />
-                                <button className="btn btn-secondary btn-icon btn-sm" style={{ padding: '0.4rem' }} onClick={() => removeModifierOption(gIdx, oIdx)}><X size={14} /></button>
-                              </div>
-                            ))}
-                          </div>
-                          <button className="btn btn-secondary btn-sm" style={{ marginTop: '0.5rem' }} onClick={() => addModifierOption(gIdx)}>
-                            <Plus size={13} /> Add Option
-                          </button>
-                        </div>
+                        </label>
                       ))}
                     </div>
                   )}

@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts';
-import { ingredientApi, menuApi, transactionApi, expenseApi } from '../lib/api';
+import { ingredientApi, menuApi, transactionApi, expenseApi, purchaseOrderApi } from '../lib/api';
 import { useActiveOutlet } from '../hooks/useActiveOutlet';
 import {
   Package,
@@ -35,9 +35,34 @@ export default function DashboardPage() {
     queryKey: ['expenses', activeOutletId],
     queryFn: () => expenseApi.getAll(activeOutletId),
   });
+  const { data: purchaseOrders = [] } = useQuery({
+    queryKey: ['purchaseOrders', activeOutletId],
+    queryFn: () => purchaseOrderApi.getAll(activeOutletId),
+  });
 
-  const totalRevenue = transactions.filter(t => t.status === 'COMPLETED').reduce((sum, t) => sum + Number(t.totalAmount), 0);
-  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  // Revenue = Grand Total - Tax Amount (pajak bukan pendapatan)
+  const totalRevenue = transactions
+    .filter(t => t.status === 'COMPLETED')
+    .reduce((sum, t) => sum + (Number(t.totalAmount) - Number(t.taxAmount || 0)), 0);
+
+  // Manual expenses + Purchase Orders (yang sudah diterima)
+  const manualExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  // Calculate COGS (Cost of Goods Sold) based on current recipes
+  const totalCogs = transactions
+    .filter(t => t.status === 'COMPLETED')
+    .reduce((sum, t) => {
+      const txCogs = t.items.reduce((itemSum, item) => {
+        const menu = menus.find(m => m.id === item.menu?.id);
+        if (!menu || !menu.ingredients) return itemSum;
+        const recipeCost = menu.ingredients.reduce((recipeSum, mi) => {
+          return recipeSum + (Number(mi.quantity) * Number(mi.ingredient.costPerUnit));
+        }, 0);
+        return itemSum + (recipeCost * item.quantity);
+      }, 0);
+      return sum + txCogs;
+    }, 0);
+  
+  const totalExpenses = manualExpenses + totalCogs;
   const netProfit = totalRevenue - totalExpenses;
 
   const todayTx = transactions.filter((t) => {
@@ -56,7 +81,7 @@ export default function DashboardPage() {
     const dayTotal = transactions.filter(t => {
       const td = new Date(t.createdAt);
       return td.toDateString() === d.toDateString() && t.status === 'COMPLETED';
-    }).reduce((sum, t) => sum + Number(t.totalAmount), 0);
+    }).reduce((sum, t) => sum + (Number(t.totalAmount) - Number(t.taxAmount || 0)), 0);
     salesData.push({ name: dateStr, revenue: dayTotal });
   }
 
@@ -103,7 +128,7 @@ export default function DashboardPage() {
             <div>
               <div className="stat-card-label">Total Revenue</div>
               <div className="stat-card-value">{formatCurrency(totalRevenue)}</div>
-              <div className="stat-card-sub">Gross income</div>
+              <div className="stat-card-sub">Gross income (Excl. Tax)</div>
             </div>
           </div>
 
@@ -116,7 +141,7 @@ export default function DashboardPage() {
               <div className="stat-card-value" style={{ color: netProfit < 0 ? 'var(--danger)' : 'var(--success)' }}>
                 {formatCurrency(netProfit)}
               </div>
-              <div className="stat-card-sub">Revenue - Expenses</div>
+              <div className="stat-card-sub">Revenue - (COGS + Expenses)</div>
             </div>
           </div>
 

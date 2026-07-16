@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { outletApi } from '../lib/api';
+import { useAuth } from '../contexts/AuthContext';
 import { Plus, Store, Trash2 } from 'lucide-react';
 
 const emptyForm = { name: '', slug: '', address: '', phone: '', isActive: true };
 const emptyTableForm = { code: '', label: '', isActive: true };
 
 export default function OutletsPage() {
+  const { user } = useAuth();
   const qc = useQueryClient();
   const [isOpen, setIsOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -51,6 +53,9 @@ export default function OutletsPage() {
   const deleteMut = useMutation({
     mutationFn: (id: string) => outletApi.delete(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['outlets'] }),
+    onError: (err: any) => {
+      alert(err.response?.data?.message || 'Gagal menghapus outlet');
+    }
   });
 
   return (
@@ -107,12 +112,14 @@ export default function OutletsPage() {
                     >
                       Edit
                     </button>
-                    <button
-                      className="btn btn-danger btn-sm"
-                      onClick={() => { if (confirm(`Hapus outlet ${outlet.name}?`)) deleteMut.mutate(outlet.id); }}
-                    >
-                      <Trash2 size={14} /> Hapus
-                    </button>
+                    {user?.role === 'OWNER' && (
+                      <button
+                        className="btn btn-danger btn-sm"
+                        onClick={() => { if (confirm(`Hapus outlet ${outlet.name}?`)) deleteMut.mutate(outlet.id); }}
+                      >
+                        <Trash2 size={14} /> Hapus
+                      </button>
+                    )}
                   </div>
                 </div>
 

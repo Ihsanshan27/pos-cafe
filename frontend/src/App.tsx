@@ -22,6 +22,8 @@ import OutletsPage from './pages/OutletsPage';
 import SuppliersPage from './pages/SuppliersPage';
 import PurchaseOrdersPage from './pages/PurchaseOrdersPage';
 import PublicOrderPage from './pages/PublicOrderPage';
+import ModifiersPage from './pages/ModifiersPage';
+import AnalyticsPage from './pages/AnalyticsPage';
 import { getFirstAvailableRoute, isFeatureDisabled, type FeatureKey } from './lib/featureAccess';
 import { useAppPublicSettings } from './hooks/useAppPublicSettings';
 import './index.css';
@@ -74,11 +76,13 @@ function ProtectedLayout() {
         
         {/* Manager & Owner only routes */}
         <Route path="/ingredients" element={isManagerOrOwner ? guardFeature('ingredients', <IngredientsPage />) : <Navigate to={fallbackRoute} replace />} />
+        <Route path="/modifiers" element={isManagerOrOwner ? guardFeature('modifiers', <ModifiersPage />) : <Navigate to={fallbackRoute} replace />} />
         <Route path="/inventory-logs" element={isManagerOrOwner ? guardFeature('inventory-logs', <InventoryLogsPage />) : <Navigate to={fallbackRoute} replace />} />
         <Route path="/menus" element={isManagerOrOwner ? guardFeature('menus', <MenusPage />) : <Navigate to={fallbackRoute} replace />} />
         <Route path="/categories" element={isManagerOrOwner ? guardFeature('categories', <CategoriesPage />) : <Navigate to={fallbackRoute} replace />} />
         <Route path="/discounts" element={isManagerOrOwner ? guardFeature('discounts', <DiscountsPage />) : <Navigate to={fallbackRoute} replace />} />
         <Route path="/expenses" element={isManagerOrOwner ? guardFeature('expenses', <ExpensesPage />) : <Navigate to={fallbackRoute} replace />} />
+        <Route path="/analytics" element={isManagerOrOwner ? guardFeature('analytics', <AnalyticsPage />) : <Navigate to={fallbackRoute} replace />} />
         <Route path="/users" element={isManagerOrOwner ? guardFeature('users', <UsersPage />) : <Navigate to={fallbackRoute} replace />} />
         
         {/* Owner only routes */}

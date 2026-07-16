@@ -14,6 +14,20 @@ function formatCurrency(val: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
 }
 
+// Modifiers stored as { groupName: [{id, name, price}] } or as array [{id, name, price}]
+function getModifierEntries(modifiers: any): { name: string; price: number }[] {
+  if (!modifiers) return [];
+  if (Array.isArray(modifiers)) return modifiers.map((m: any) => ({ name: m.name || '', price: Number(m.price || 0) })).filter(m => m.name);
+  if (typeof modifiers === 'object') {
+    const entries: { name: string; price: number }[] = [];
+    Object.values(modifiers).forEach((opts: any) => {
+      if (Array.isArray(opts)) opts.forEach((o: any) => { if (o?.name) entries.push({ name: o.name, price: Number(o.price || 0) }); });
+    });
+    return entries;
+  }
+  return [];
+}
+
 type CartItem = { id: string; menu: Menu; quantity: number; notes?: string; modifiers?: any; modifierPrice?: number };
 
 function getMenuAvailability(menu: Menu, lowStockThreshold: number, stockMap: Map<string, number>) {
@@ -86,7 +100,9 @@ export default function POSPage() {
   const [selectedDiscount, setSelectedDiscount] = useState<Discount | null>(null);
   const [detailMenu, setDetailMenu] = useState<Menu | null>(null);
   const [modifierMenu, setModifierMenu] = useState<Menu | null>(null);
+  const [editingCartItemId, setEditingCartItemId] = useState<string | null>(null);
   const [modifierSelections, setModifierSelections] = useState<Record<string, any[]>>({});
+  const [menuToConfirm, setMenuToConfirm] = useState<Menu | null>(null);
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
   useEffect(() => {
@@ -428,13 +444,10 @@ export default function POSPage() {
       return;
     }
 
-    const modifierStr = JSON.stringify(modifiers || {});
-    
-    setCart((prev) => {
-      const exists = prev.find((c) => c.menu.id === menu.id && JSON.stringify(c.modifiers || {}) === modifierStr);
-      if (exists) return prev.map((c) => c.id === exists.id ? { ...c, quantity: c.quantity + 1 } : c);
-      return [...prev, { id: crypto.randomUUID(), menu, quantity: 1, modifiers, modifierPrice }];
-    });
+    setCart((prev) => [
+      ...prev,
+      { id: crypto.randomUUID(), menu, quantity: 1, modifiers: modifiers || {}, modifierPrice }
+    ]);
   };
 
   const updateQty = (id: string, delta: number) => {
@@ -443,6 +456,10 @@ export default function POSPage() {
 
   const updateNotes = (id: string, notes: string) => {
     setCart((prev) => prev.map((c) => c.id === id ? { ...c, notes } : c));
+  };
+
+  const updateCartItemModifiers = (id: string, modifiers: any, modifierPrice: number) => {
+    setCart((prev) => prev.map((c) => c.id === id ? { ...c, modifiers, modifierPrice } : c));
   };
 
   const removeFromCart = (id: string) => setCart((prev) => prev.filter((c) => c.id !== id));
@@ -585,12 +602,7 @@ export default function POSPage() {
                     id={`menu-card-${menu.id}`}
                     className="menu-card"
                     onClick={() => {
-                      if ((menu as any).modifierGroups?.length > 0) {
-                        setModifierMenu(menu);
-                        setModifierSelections({});
-                      } else {
-                        addToCart(menu);
-                      }
+                      setMenuToConfirm(menu);
                     }}
                     style={{
                       ...(inCart ? { borderColor: 'var(--accent)', background: 'rgba(99,102,241,0.07)' } : {}),
@@ -692,7 +704,7 @@ export default function POSPage() {
                     {item.modifiers && Object.keys(item.modifiers).length > 0 && (
                       <div style={{ fontSize: '0.7rem', color: 'var(--text-secondary)', marginTop: '0.2rem' }}>
                         {Object.entries(item.modifiers).map(([group, opts]: [string, any]) => (
-                          <div key={group}>{group}: {opts.map((o: any) => o.name).join(', ')}</div>
+                          <div key={group}>{group}: {opts.map((o: any) => `${o.name}${Number(o.price) > 0 ? ` (+${formatCurrency(Number(o.price))})` : ''}`).join(', ')}</div>
                         ))}
                       </div>
                     )}
@@ -703,6 +715,19 @@ export default function POSPage() {
                       value={item.notes || ''}
                       onChange={(e) => updateNotes(item.id, e.target.value)}
                     />
+                    {((item.menu as any).modifierGroups?.length > 0) && (
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        style={{ marginTop: '0.4rem', fontSize: '0.7rem', padding: '0.2rem 0.5rem' }}
+                        onClick={() => {
+                          setModifierMenu(item.menu);
+                          setModifierSelections(item.modifiers || {});
+                          setEditingCartItemId(item.id);
+                        }}
+                      >
+                        <Plus size={10} style={{ marginRight: '0.2rem' }} /> Tambah Add-on
+                      </button>
+                    )}
                   </div>
                   <button className="btn btn-danger btn-icon" style={{ width: 22, height: 22, padding: 0 }} onClick={() => removeFromCart(item.id)}>
                     <X size={11} />
@@ -1135,7 +1160,7 @@ export default function POSPage() {
           <div className="modal" style={{ maxWidth: 450 }} onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3>{modifierMenu.name}</h3>
-              <button className="btn btn-secondary btn-icon btn-sm" onClick={() => setModifierMenu(null)}>
+              <button className="btn btn-secondary btn-icon btn-sm" onClick={() => { setModifierMenu(null); setEditingCartItemId(null); }}>
                 <X size={16} />
               </button>
             </div>
@@ -1177,7 +1202,7 @@ export default function POSPage() {
               ))}
             </div>
             <div className="modal-actions" style={{ marginTop: '1.5rem', display: 'flex', gap: '0.5rem' }}>
-              <button className="btn btn-secondary" onClick={() => setModifierMenu(null)}>Cancel</button>
+              <button className="btn btn-secondary" onClick={() => { setModifierMenu(null); setEditingCartItemId(null); }}>Cancel</button>
               <button
                 className="btn btn-primary"
                 style={{ flex: 1, justifyContent: 'center' }}
@@ -1201,11 +1226,16 @@ export default function POSPage() {
                     opts.forEach(o => { modifierPrice += Number(o.price); });
                   });
                   
-                  addToCart(modifierMenu, modifierSelections, modifierPrice);
+                  if (editingCartItemId) {
+                    updateCartItemModifiers(editingCartItemId, modifierSelections, modifierPrice);
+                  } else {
+                    addToCart(modifierMenu, modifierSelections, modifierPrice); // Fallback
+                  }
                   setModifierMenu(null);
+                  setEditingCartItemId(null);
                 }}
               >
-                <CheckCircle size={16} /> Add to Cart
+                <CheckCircle size={16} /> Simpan Add-on
               </button>
             </div>
           </div>
@@ -1255,10 +1285,15 @@ export default function POSPage() {
                   <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600 }}>{item.menu?.name || 'Unknown Menu'}</div>
+                      {(() => { const entries = getModifierEntries((item as any).modifiers); return entries.length > 0 ? (
+                        <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>
+                          {entries.map(e => `${e.name}${e.price > 0 ? ` (+${formatCurrency(e.price)})` : ''}`).join(', ')}
+                        </div>
+                      ) : null; })()}
                       {(item as any).notes && (
-                        <div style={{ fontSize: '0.75rem', color: '#888', fontStyle: 'italic' }}>Note: {(item as any).notes}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#888', fontStyle: 'italic', marginTop: '2px' }}>Note: {(item as any).notes}</div>
                       )}
-                      <div style={{ color: '#666', fontSize: '0.8rem' }}>{item.quantity} x {formatCurrency(Number(item.priceAtSale))}</div>
+                      <div style={{ color: '#666', fontSize: '0.8rem', marginTop: '2px' }}>{item.quantity} x {formatCurrency(Number(item.priceAtSale))}</div>
                     </div>
                     <div style={{ fontWeight: 600 }}>{formatCurrency(Number(item.subtotal))}</div>
                   </div>
@@ -1321,6 +1356,7 @@ export default function POSPage() {
                     const itemsHtml = receiptTx.items.map(item => `
                       <div style="margin-bottom: 10px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">
                         <div style="font-weight: bold; font-size: 1.2rem;">${item.quantity} x ${item.menu?.name || 'Unknown Menu'}</div>
+                        ${(() => { const entries = getModifierEntries((item as any).modifiers); return entries.length > 0 ? `<div style="font-size: 0.9rem; color: #555; margin-top: 4px;">${entries.map(e => e.name + (e.price > 0 ? ` (+${formatCurrency(e.price)})` : '')).join(', ')}</div>` : ''; })()}
                         ${(item as any).notes ? `<div style="font-size: 1rem; color: #333; font-weight: bold; margin-top: 5px;">Catatan: ${(item as any).notes}</div>` : ''}
                       </div>
                     `).join('');
@@ -1488,6 +1524,36 @@ export default function POSPage() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Menu Confirmation Modal */}
+      {menuToConfirm && (
+        <div className="modal-overlay" onClick={() => setMenuToConfirm(null)}>
+          <div className="modal" style={{ maxWidth: 400 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Konfirmasi Pesanan</h3>
+              <button className="btn btn-secondary btn-icon btn-sm" onClick={() => setMenuToConfirm(null)}><X size={16} /></button>
+            </div>
+            <div style={{ textAlign: 'center', padding: '1rem 0' }}>
+              <p style={{ fontSize: '1.1rem', marginBottom: '1.5rem', lineHeight: 1.4 }}>
+                Tambahkan <strong>{menuToConfirm.name}</strong> ke keranjang?
+              </p>
+              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'center' }}>
+                <button className="btn btn-secondary" onClick={() => setMenuToConfirm(null)} style={{ flex: 1, justifyContent: 'center' }}>Batal</button>
+                <button 
+                  className="btn btn-primary" 
+                  onClick={() => {
+                    addToCart(menuToConfirm);
+                    setMenuToConfirm(null);
+                  }}
+                  style={{ flex: 1, justifyContent: 'center' }}
+                >
+                  <Plus size={16} /> Ya, Tambahkan
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

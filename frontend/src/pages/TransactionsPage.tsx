@@ -14,6 +14,19 @@ function formatCurrency(val: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
 }
 
+function getModifierEntries(modifiers: any): { name: string; price: number }[] {
+  if (!modifiers) return [];
+  if (Array.isArray(modifiers)) return modifiers.map((m: any) => ({ name: m.name || '', price: Number(m.price || 0) })).filter(m => m.name);
+  if (typeof modifiers === 'object') {
+    const entries: { name: string; price: number }[] = [];
+    Object.values(modifiers).forEach((opts: any) => {
+      if (Array.isArray(opts)) opts.forEach((o: any) => { if (o?.name) entries.push({ name: o.name, price: Number(o.price || 0) }); });
+    });
+    return entries;
+  }
+  return [];
+}
+
 export default function TransactionsPage() {
   const qc = useQueryClient();
   const { user } = useAuth();
@@ -367,10 +380,15 @@ export default function TransactionsPage() {
                   <div key={item.id} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem', fontSize: '0.9rem' }}>
                     <div style={{ flex: 1 }}>
                       <div style={{ fontWeight: 600 }}>{item.menu?.name || 'Unknown Menu'}</div>
+                      {(() => { const entries = getModifierEntries((item as any).modifiers); return entries.length > 0 ? (
+                        <div style={{ fontSize: '0.75rem', color: '#666', marginTop: '2px' }}>
+                          {entries.map(e => `${e.name}${e.price > 0 ? ` (+${formatCurrency(e.price)})` : ''}`).join(', ')}
+                        </div>
+                      ) : null; })()}
                       {(item as any).notes && (
-                        <div style={{ fontSize: '0.75rem', color: '#888', fontStyle: 'italic' }}>Note: {(item as any).notes}</div>
+                        <div style={{ fontSize: '0.75rem', color: '#888', fontStyle: 'italic', marginTop: '2px' }}>Note: {(item as any).notes}</div>
                       )}
-                      <div style={{ color: '#666', fontSize: '0.8rem' }}>{item.quantity} x {formatCurrency(Number(item.priceAtSale))}</div>
+                      <div style={{ color: '#666', fontSize: '0.8rem', marginTop: '2px' }}>{item.quantity} x {formatCurrency(Number(item.priceAtSale))}</div>
                     </div>
                     <div style={{ fontWeight: 600 }}>{formatCurrency(Number(item.subtotal))}</div>
                   </div>
@@ -481,6 +499,11 @@ export default function TransactionsPage() {
                 {kitchenTicketTx.items.map(item => (
                   <div key={item.id} style={{ marginBottom: '10px', borderBottom: '1px dashed #ccc', paddingBottom: '10px' }}>
                     <div style={{ fontWeight: 'bold', fontSize: '1.2rem' }}>{item.quantity} x {item.menu?.name || 'Unknown Menu'}</div>
+                    {(() => { const entries = getModifierEntries((item as any).modifiers); return entries.length > 0 ? (
+                      <div style={{ fontSize: '1rem', color: '#555', marginTop: '4px' }}>
+                        {entries.map(e => `${e.name}${e.price > 0 ? ` (+${formatCurrency(e.price)})` : ''}`).join(', ')}
+                      </div>
+                    ) : null; })()}
                     {(item as any).notes && (
                       <div style={{ fontSize: '1rem', color: '#333', fontWeight: 'bold', marginTop: '5px' }}>
                         Catatan: {(item as any).notes}

@@ -16,7 +16,9 @@ import {
   ClipboardList,
   Store,
   Truck,
-  ShoppingBag
+  ShoppingBag,
+  ListPlus,
+  LineChart
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
@@ -31,9 +33,11 @@ const navItems = [
 
   { to: '/transactions', icon: Receipt, label: 'Transactions', category: 'Sales & Finance', roles: ['OWNER', 'MANAGER', 'CASHIER'], featureKey: 'transactions' as FeatureKey },
   { to: '/expenses', icon: Wallet, label: 'Expenses', category: 'Sales & Finance', roles: ['OWNER', 'MANAGER'], featureKey: 'expenses' as FeatureKey },
+  { to: '/analytics', icon: LineChart, label: 'Finance Analytics', category: 'Sales & Finance', roles: ['OWNER', 'MANAGER'], featureKey: 'analytics' as FeatureKey },
 
   { to: '/menus', icon: UtensilsCrossed, label: 'Menus', category: 'Catalog', roles: ['OWNER', 'MANAGER'], featureKey: 'menus' as FeatureKey },
   { to: '/categories', icon: Tags, label: 'Categories', category: 'Catalog', roles: ['OWNER', 'MANAGER'], featureKey: 'categories' as FeatureKey },
+  { to: '/modifiers', icon: ListPlus, label: 'Modifiers', category: 'Catalog', roles: ['OWNER', 'MANAGER'], featureKey: 'modifiers' as FeatureKey },
   { to: '/discounts', icon: PercentCircle, label: 'Discounts', category: 'Catalog', roles: ['OWNER', 'MANAGER'], featureKey: 'discounts' as FeatureKey },
 
   { to: '/ingredients', icon: Package, label: 'Ingredients', category: 'Inventory', roles: ['OWNER', 'MANAGER'], featureKey: 'ingredients' as FeatureKey },

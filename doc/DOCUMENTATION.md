@@ -100,72 +100,54 @@ Model utama yang digunakan dalam Prisma:
 
 ## 4. Cara Menjalankan Project
 
-Project ini saat ini dijalankan dengan pola berikut:
-- **Docker Compose** dipakai untuk PostgreSQL saja.
-- **Manual Development** dipakai untuk backend dan frontend.
+## 4. Cara Menjalankan Project
 
-### A. Menjalankan PostgreSQL dengan Docker Compose
+Project ini saat ini dijalankan menggunakan **Docker Compose** secara penuh (*database*, *backend*, dan *frontend* berjalan di dalam *container*).
+
+### A. Menjalankan Seluruh Aplikasi via Docker Compose
 
 Pastikan **Docker Desktop** sudah aktif.
 
-1. **Jalankan database PostgreSQL**
+1. **Jalankan semua layanan (Database, Backend, Frontend)**
    ```bash
    docker compose up -d
    ```
 
-2. **Akses database**
-   - PostgreSQL Docker: `localhost:5433`
+2. **Akses Aplikasi**
+   - **Frontend**: `http://localhost:5173`
+   - **Backend API**: `http://localhost:3000`
+   - **PostgreSQL**: `localhost:5433` (Credential: `pos_user` / `pos_password`)
 
-3. **Credential database Docker**
-   - Database: `pos_fnb`
-   - Username: `pos_user`
-   - Password: `pos_password`
-
-4. **Melihat log container**
+3. **Melihat log container**
    ```bash
-   docker compose logs -f db
+   docker compose logs -f
    ```
+   *(Untuk melihat log spesifik: `docker compose logs -f backend` atau `docker compose logs -f frontend`)*
 
-5. **Menghentikan container database**
+4. **Menghentikan aplikasi**
    ```bash
    docker compose down
    ```
 
-6. **Menghentikan dan menghapus volume database**
-   ```bash
-   docker compose down -v
-   ```
+### B. Penting: Mengubah Skema Database (Prisma) di Docker
 
-Catatan:
-- Port `5433` di host dipakai agar tidak bentrok dengan PostgreSQL lokal Anda yang sudah memakai `5432`.
-- Untuk backend yang berjalan lokal, isi `DATABASE_URL` di [backend/.env](backend/.env) harus mengarah ke port Docker host, misalnya:
-  `postgresql://pos_user:pos_password@localhost:5433/pos_fnb?schema=public`
+Karena aplikasi backend berjalan di dalam Docker, folder `node_modules` menggunakan *anonymous volume*. Oleh karena itu, jika Anda melakukan perubahan pada `backend/prisma/schema.prisma`, perintah `prisma generate` **wajib** dieksekusi di *dalam container*.
 
-### B. Menjalankan Secara Manual (Tanpa Docker)
-
-Sistem ini membutuhkan Node.js (v18+) dan PostgreSQL aktif. PostgreSQL bisa berasal dari Docker Compose di atas.
-
-1. **Siapkan environment backend**
-   - Pastikan isi `DATABASE_URL` di `backend/.env` mengarah ke PostgreSQL lokal Anda.
-
-2. **Jalankan Backend (NestJS)**
+**Langkah-langkah jika mengubah schema.prisma:**
+1. Sinkronkan skema ke database (boleh dijalankan dari lokal):
    ```bash
    cd backend
-   npm install
-   npx prisma generate
    npx prisma db push
-   npm run seed
-   npm run start:dev
+   # atau npx prisma migrate dev --name <nama_migrasi>
    ```
-   *Backend akan berjalan di port `3000`.*
-
-3. **Jalankan Frontend (React/Vite)**
+2. Generate ulang Prisma Client **di dalam container backend**:
    ```bash
-   cd frontend
-   npm install
-   npm run dev
+   docker exec pos_fnb_backend npx prisma generate
    ```
-   *Frontend akan berjalan di port `5173` (bisa diakses via `http://localhost:5173`).*
+3. Restart *backend* agar kode terbaru dan Prisma Client yang baru dimuat:
+   ```bash
+   docker compose restart backend
+   ```
 
 ## 5. Akun Default Seed
 

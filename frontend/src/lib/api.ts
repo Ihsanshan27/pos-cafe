@@ -103,6 +103,21 @@ export interface RecipeItem {
   ingredient: Ingredient;
 }
 
+export interface ModifierOption {
+  id: string;
+  name: string;
+  price: number;
+  groupId: string;
+}
+
+export interface ModifierGroup {
+  id: string;
+  name: string;
+  isRequired: boolean;
+  isMultiple: boolean;
+  options: ModifierOption[];
+}
+
 export interface Menu {
   id: string;
   name: string;
@@ -111,6 +126,7 @@ export interface Menu {
   imageUrl?: string;
   hpp: number;
   ingredients: RecipeItem[];
+  modifierGroups?: ModifierGroup[];
   createdAt: string;
   updatedAt: string;
   isActive?: boolean;
@@ -129,8 +145,8 @@ export interface TransactionItem {
   priceAtSale: number;
   subtotal: number;
   notes?: string;
-  menuId: string;
-  menu: Menu;
+  menuId?: string;
+  menu?: Menu;
 }
 
 export interface Customer {
@@ -204,6 +220,8 @@ export interface Transaction {
   outletId?: string;
   outlet?: Outlet;
   totalAmount: number;
+  taxAmount?: number;
+  discountAmount?: number;
   paymentMethod: 'CASH' | 'QRIS' | 'DEBIT' | 'EWALLET';
   status: 'PENDING' | 'COMPLETED' | 'CANCELLED';
   kitchenStatus: 'PENDING' | 'IN_PROGRESS' | 'DONE';
@@ -244,7 +262,7 @@ export interface CreateMenuPayload {
   sellingPrice: number;
   imageUrl?: string;
   ingredients?: { ingredientId: string; quantity: number }[];
-  modifierGroups?: any[];
+  modifierGroupIds?: string[];
 }
 
 export const menuApi = {
@@ -470,7 +488,29 @@ export const settingsApi = {
   setAllowRegistration: (allowed: boolean) => api.patch<{ allowed: boolean }>('/settings/allow-registration', { allowed }).then((r) => r.data),
   getSetting: (key: string) => api.get<{ key: string; value: string | null }>(`/settings/${key}`).then((r) => r.data),
   setSetting: (key: string, value: string) => api.patch<{ key: string; value: string }>(`/settings/${key}`, { value }).then((r) => r.data),
-  getAuditLogs: () => api.get<AuditLog[]>('/settings/audit-logs').then((r) => r.data),
+  getAuditLogs: async () => {
+    const res = await api.get('/settings/audit-logs');
+    return res.data;
+  },
+};
+
+export const modifierApi = {
+  getAll: async () => {
+    const res = await api.get<ModifierGroup[]>('/modifiers');
+    return res.data;
+  },
+  create: async (data: Omit<ModifierGroup, 'id' | 'options'> & { options: Omit<ModifierOption, 'id' | 'groupId'>[] }) => {
+    const res = await api.post<ModifierGroup>('/modifiers', data);
+    return res.data;
+  },
+  update: async (id: string, data: Partial<Omit<ModifierGroup, 'options'>> & { options?: any[] }) => {
+    const res = await api.patch<ModifierGroup>(`/modifiers/${id}`, data);
+    return res.data;
+  },
+  delete: async (id: string) => {
+    const res = await api.delete(`/modifiers/${id}`);
+    return res.data;
+  }
 };
 
 export const customerApi = {

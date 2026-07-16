@@ -4,6 +4,7 @@ export const FEATURE_OPTIONS = [
   { key: 'inventory-logs', label: 'Inventory Logs' },
   { key: 'menus', label: 'Menus' },
   { key: 'categories', label: 'Categories' },
+  { key: 'modifiers', label: 'Modifiers' },
   { key: 'discounts', label: 'Discounts' },
   { key: 'expenses', label: 'Expenses' },
   { key: 'users', label: 'Staff Management' },
@@ -13,6 +14,7 @@ export const FEATURE_OPTIONS = [
   { key: 'purchase-orders', label: 'Purchase Orders' },
   { key: 'pos', label: 'Point of Sale' },
   { key: 'transactions', label: 'Transactions' },
+  { key: 'analytics', label: 'Finance Analytics' },
   { key: 'kitchen', label: 'Kitchen / KDS' },
 ] as const;
 

@@ -2,8 +2,9 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { userApi, settingsApi, outletApi } from '../lib/api';
 import type { AuthUser } from '../lib/api';
-import { Users, Plus, Trash2, Edit } from 'lucide-react';
+import { Users, Plus, Trash2, Edit, ArrowUp, ArrowDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useSortableData } from '../hooks/useSortableData';
 
 export default function UsersPage() {
   const qc = useQueryClient();
@@ -41,6 +42,13 @@ export default function UsersPage() {
     mutationFn: (allowed: boolean) => settingsApi.setAllowRegistration(allowed),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['settings', 'allow-registration'] }),
   });
+
+  const { items: sortedUsers, requestSort, sortConfig } = useSortableData(users, { key: 'name', direction: 'asc' });
+
+  const getSortIcon = (key: string) => {
+    if (!sortConfig || sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
+  };
 
   const resetForm = () => {
     setName('');
@@ -135,15 +143,15 @@ export default function UsersPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Outlet</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('name')}>Name {getSortIcon('name')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('email')}>Email {getSortIcon('email')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('role')}>Role {getSortIcon('role')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('outletId')}>Outlet {getSortIcon('outletId')}</th>
                   <th style={{ textAlign: 'center', width: '120px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {users.map((u) => (
+                {sortedUsers.map((u) => (
                   <tr key={u.id}>
                     <td style={{ fontWeight: 500 }}>{u.name}</td>
                     <td>{u.email}</td>

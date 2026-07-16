@@ -12,6 +12,19 @@ if (KDS_WS_URL.endsWith('/api/v1')) {
   KDS_WS_URL = KDS_WS_URL.replace(/\/api\/v1$/, '');
 }
 
+function getModifierEntries(modifiers: any): { name: string; price: number }[] {
+  if (!modifiers) return [];
+  if (Array.isArray(modifiers)) return modifiers.map((m: any) => ({ name: m.name || '', price: Number(m.price || 0) })).filter(m => m.name);
+  if (typeof modifiers === 'object') {
+    const entries: { name: string; price: number }[] = [];
+    Object.values(modifiers).forEach((opts: any) => {
+      if (Array.isArray(opts)) opts.forEach((o: any) => { if (o?.name) entries.push({ name: o.name, price: Number(o.price || 0) }); });
+    });
+    return entries;
+  }
+  return [];
+}
+
 function playDing() {
   try {
     const ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -194,6 +207,11 @@ export default function KitchenPage() {
               <span style={{ background: 'var(--accent)', color: 'white', padding: '0.1rem 0.5rem', borderRadius: '0.25rem' }}>{item.quantity}</span>
               <span>{item.menu?.name}</span>
             </div>
+            {(() => { const entries = getModifierEntries(item.modifiers); return entries.length > 0 ? (
+              <div style={{ marginTop: '0.25rem', fontSize: '0.9rem', color: '#555', fontWeight: 600 }}>
+                {entries.map(e => `${e.name}${e.price > 0 ? ` (+Rp ${e.price.toLocaleString('id-ID')})` : ''}`).join(', ')}
+              </div>
+            ) : null; })()}
             {item.notes && (
               <div
                 style={{
