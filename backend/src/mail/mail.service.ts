@@ -68,7 +68,24 @@ export class MailService {
           to: email,
           subject: subject,
           text: message,
-          html: `<div style="font-family: sans-serif; padding: 20px;">${message.replace(/\n/g, '<br/>')}</div>`,
+          html: `
+            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; background-color: #ffffff; border: 1px solid #e5e7eb; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);">
+              <div style="background-color: #4f46e5; padding: 24px; text-align: center;">
+                <h2 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 700; letter-spacing: 1px;">SHN COFFEE</h2>
+              </div>
+              <div style="padding: 32px 24px;">
+                <h3 style="color: #111827; margin-top: 0; font-size: 20px; font-weight: 600; text-align: center;">${subject}</h3>
+                <div style="color: #4b5563; font-size: 15px; line-height: 1.6; margin-bottom: 24px;">
+                  ${message.replace(/\n/g, '<br/>')}
+                </div>
+              </div>
+              <div style="background-color: #f9fafb; padding: 16px; text-align: center; border-top: 1px solid #f3f4f6;">
+                <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                  &copy; ${new Date().getFullYear()} SHN COFFEE Restaurant System.<br>All rights reserved.
+                </p>
+              </div>
+            </div>
+          `,
         })
       );
       
