@@ -80,7 +80,7 @@ model Menu {
   ingredients   RecipeItem[]
   transactions  TransactionItem[]
   outletMenus   OutletMenu[]
-  modifierGroups MenuModifierGroup[]
+  modifierGroups ModifierGroup[]
 }
 
 model RecipeItem {
@@ -328,22 +328,21 @@ model OutletMenu {
   @@unique([outletId, menuId])
 }
 
-model MenuModifierGroup {
-  id            String               @id @default(uuid())
-  name          String
-  isRequired    Boolean              @default(false)
-  isMultiple    Boolean              @default(false)
-  menuId        String
-  menu          Menu                 @relation(fields: [menuId], references: [id], onDelete: Cascade)
-  options       MenuModifierOption[]
-}
-
-model MenuModifierOption {
+model ModifierGroup {
   id            String            @id @default(uuid())
   name          String
-  price         Decimal           @default(0)
+  isRequired    Boolean           @default(false)
+  isMultiple    Boolean           @default(false)
+  options       ModifierOption[]
+  menus         Menu[]
+}
+
+model ModifierOption {
+  id            String         @id @default(uuid())
+  name          String
+  price         Decimal        @default(0)
   groupId       String
-  group         MenuModifierGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  group         ModifierGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
 }
 
 model AuditLog {

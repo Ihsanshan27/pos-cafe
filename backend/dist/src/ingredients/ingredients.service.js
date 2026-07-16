@@ -41,6 +41,9 @@ let IngredientsService = class IngredientsService {
             include: {
                 outletStocks: outletId ? { where: { outletId } } : true,
             },
+            orderBy: {
+                name: 'asc',
+            },
         });
         return ingredients.map((i) => {
             const { outletStocks, ...rest } = i;

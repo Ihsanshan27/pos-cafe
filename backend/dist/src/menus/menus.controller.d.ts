@@ -37,7 +37,6 @@ export declare class MenusController {
             name: string;
             isRequired: boolean;
             isMultiple: boolean;
-            menuId: string;
         })[];
     } & {
         id: string;
@@ -92,7 +91,6 @@ export declare class MenusController {
             name: string;
             isRequired: boolean;
             isMultiple: boolean;
-            menuId: string;
         })[];
         id: string;
         name: string;
@@ -145,7 +143,6 @@ export declare class MenusController {
             name: string;
             isRequired: boolean;
             isMultiple: boolean;
-            menuId: string;
         })[];
         id: string;
         name: string;
@@ -183,7 +180,6 @@ export declare class MenusController {
             name: string;
             isRequired: boolean;
             isMultiple: boolean;
-            menuId: string;
         })[];
     } & {
         id: string;

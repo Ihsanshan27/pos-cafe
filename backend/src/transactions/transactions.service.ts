@@ -222,10 +222,43 @@ export class TransactionsService {
 
       // 5. Calculate total amount and build transaction items
       let totalAmount = 0;
+
+      // Collect all modifier option IDs to fetch prices from DB
+      const allModifierOptionIds: string[] = [];
+      for (const orderItem of items) {
+        const mods = orderItem.modifiers;
+        if (mods && typeof mods === 'object' && !Array.isArray(mods)) {
+          Object.values(mods).forEach((opts: any) => {
+            if (Array.isArray(opts)) opts.forEach((o: any) => { if (o?.id) allModifierOptionIds.push(o.id); });
+          });
+        } else if (Array.isArray(mods)) {
+          mods.forEach((o: any) => { if (o?.id) allModifierOptionIds.push(o.id); });
+        }
+      }
+
+      // Fetch all referenced modifier options at once
+      const modifierOptions = allModifierOptionIds.length > 0
+        ? await tx.modifierOption.findMany({ where: { id: { in: allModifierOptionIds } } })
+        : [];
+      const modifierOptionMap = new Map(modifierOptions.map(o => [o.id, Number(o.price)]));
+
       const transactionItems = items.map((orderItem) => {
         const menu = menus.find((m) => m.id === orderItem.menuId)!;
         const override = menu.outletMenus[0];
-        const priceAtSale = override ? Number(override.sellingPrice) : Number(menu.sellingPrice);
+        const basePrice = override ? Number(override.sellingPrice) : Number(menu.sellingPrice);
+
+        // Sum up modifier prices from DB
+        let modifierPrice = 0;
+        const mods = orderItem.modifiers;
+        if (mods && typeof mods === 'object' && !Array.isArray(mods)) {
+          Object.values(mods).forEach((opts: any) => {
+            if (Array.isArray(opts)) opts.forEach((o: any) => { if (o?.id) modifierPrice += modifierOptionMap.get(o.id) ?? 0; });
+          });
+        } else if (Array.isArray(mods)) {
+          mods.forEach((o: any) => { if (o?.id) modifierPrice += modifierOptionMap.get(o.id) ?? 0; });
+        }
+
+        const priceAtSale = basePrice + modifierPrice;
         const subtotal = priceAtSale * orderItem.quantity;
         totalAmount += subtotal;
 

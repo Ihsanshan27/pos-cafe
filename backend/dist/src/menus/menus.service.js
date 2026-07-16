@@ -21,7 +21,7 @@ let MenusService = class MenusService {
         this.settingsService = settingsService;
     }
     async create(createMenuDto) {
-        const { ingredients, modifierGroups, ...menuData } = createMenuDto;
+        const { ingredients, modifierGroupIds, ...menuData } = createMenuDto;
         return this.prisma.menu.create({
             data: {
                 ...menuData,
@@ -32,17 +32,7 @@ let MenusService = class MenusService {
                     })) || [],
                 },
                 modifierGroups: {
-                    create: modifierGroups?.map((group) => ({
-                        name: group.name,
-                        isRequired: group.isRequired,
-                        isMultiple: group.isMultiple,
-                        options: {
-                            create: group.options.map((opt) => ({
-                                name: opt.name,
-                                price: opt.price,
-                            })),
-                        },
-                    })) || [],
+                    connect: modifierGroupIds?.map((id) => ({ id })) || [],
                 },
             },
             include: {
@@ -128,15 +118,10 @@ let MenusService = class MenusService {
     }
     async update(id, updateMenuDto, user, ip) {
         const oldMenu = await this.prisma.menu.findUnique({ where: { id } });
-        const { ingredients, modifierGroups, ...menuData } = updateMenuDto;
+        const { ingredients, modifierGroupIds, ...menuData } = updateMenuDto;
         const result = await this.prisma.$transaction(async (tx) => {
             if (ingredients) {
                 await tx.recipeItem.deleteMany({
-                    where: { menuId: id },
-                });
-            }
-            if (modifierGroups) {
-                await tx.menuModifierGroup.deleteMany({
                     where: { menuId: id },
                 });
             }
@@ -144,29 +129,19 @@ let MenusService = class MenusService {
                 where: { id },
                 data: {
                     ...menuData,
-                    ...(ingredients && {
+                    ...(ingredients ? {
                         ingredients: {
                             create: ingredients.map((item) => ({
                                 quantity: item.quantity,
                                 ingredientId: item.ingredientId,
                             })),
                         },
-                    }),
-                    ...(modifierGroups && {
+                    } : {}),
+                    ...(modifierGroupIds ? {
                         modifierGroups: {
-                            create: modifierGroups.map((group) => ({
-                                name: group.name,
-                                isRequired: group.isRequired,
-                                isMultiple: group.isMultiple,
-                                options: {
-                                    create: group.options.map((opt) => ({
-                                        name: opt.name,
-                                        price: opt.price,
-                                    })),
-                                },
-                            })),
+                            set: modifierGroupIds.map((id) => ({ id })),
                         },
-                    }),
+                    } : {}),
                 },
                 include: {
                     ingredients: {

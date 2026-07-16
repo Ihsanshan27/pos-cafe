@@ -36,6 +36,9 @@ export class IngredientsService {
       include: {
         outletStocks: outletId ? { where: { outletId } } : true,
       },
+      orderBy: {
+        name: 'asc',
+      },
     });
 
     return ingredients.map((i) => {

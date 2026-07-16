@@ -9,7 +9,7 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.CreateMenuDto = exports.ModifierGroupDto = exports.ModifierOptionDto = exports.RecipeItemDto = void 0;
+exports.CreateMenuDto = exports.RecipeItemDto = void 0;
 const class_validator_1 = require("class-validator");
 const class_transformer_1 = require("class-transformer");
 class RecipeItemDto {
@@ -26,45 +26,6 @@ __decorate([
     (0, class_validator_1.Min)(0),
     __metadata("design:type", Number)
 ], RecipeItemDto.prototype, "quantity", void 0);
-class ModifierOptionDto {
-    name;
-    price;
-}
-exports.ModifierOptionDto = ModifierOptionDto;
-__decorate([
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], ModifierOptionDto.prototype, "name", void 0);
-__decorate([
-    (0, class_validator_1.IsNumber)(),
-    (0, class_validator_1.Min)(0),
-    __metadata("design:type", Number)
-], ModifierOptionDto.prototype, "price", void 0);
-class ModifierGroupDto {
-    name;
-    isRequired;
-    isMultiple;
-    options;
-}
-exports.ModifierGroupDto = ModifierGroupDto;
-__decorate([
-    (0, class_validator_1.IsString)(),
-    __metadata("design:type", String)
-], ModifierGroupDto.prototype, "name", void 0);
-__decorate([
-    (0, class_validator_1.IsBoolean)(),
-    __metadata("design:type", Boolean)
-], ModifierGroupDto.prototype, "isRequired", void 0);
-__decorate([
-    (0, class_validator_1.IsBoolean)(),
-    __metadata("design:type", Boolean)
-], ModifierGroupDto.prototype, "isMultiple", void 0);
-__decorate([
-    (0, class_validator_1.IsArray)(),
-    (0, class_validator_1.ValidateNested)({ each: true }),
-    (0, class_transformer_1.Type)(() => ModifierOptionDto),
-    __metadata("design:type", Array)
-], ModifierGroupDto.prototype, "options", void 0);
 class CreateMenuDto {
     name;
     description;
@@ -72,7 +33,7 @@ class CreateMenuDto {
     imageUrl;
     categoryId;
     ingredients;
-    modifierGroups;
+    modifierGroupIds;
 }
 exports.CreateMenuDto = CreateMenuDto;
 __decorate([
@@ -109,8 +70,7 @@ __decorate([
 __decorate([
     (0, class_validator_1.IsOptional)(),
     (0, class_validator_1.IsArray)(),
-    (0, class_validator_1.ValidateNested)({ each: true }),
-    (0, class_transformer_1.Type)(() => ModifierGroupDto),
+    (0, class_validator_1.IsString)({ each: true }),
     __metadata("design:type", Array)
-], CreateMenuDto.prototype, "modifierGroups", void 0);
+], CreateMenuDto.prototype, "modifierGroupIds", void 0);
 //# sourceMappingURL=create-menu.dto.js.map
