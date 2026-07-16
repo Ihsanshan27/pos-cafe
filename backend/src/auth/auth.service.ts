@@ -11,6 +11,11 @@ import * as bcrypt from 'bcrypt';
 import { SettingsService } from '../settings/settings.service';
 import { Role } from '@prisma/client';
 import { sanitizeUser } from '../common/user-response.util';
+import { MailService } from '../mail/mail.service';
+
+function generateOTP(): string {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
 @Injectable()
 export class AuthService {
@@ -18,10 +23,35 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private settingsService: SettingsService,
+    private mailService: MailService,
   ) {}
 
-  async register(dto: RegisterDto) {
-    // Check if email already exists
+  async requestRegisterOtp(email: string) {
+    const exists = await this.prisma.user.findUnique({ where: { email } });
+    if (exists) throw new ConflictException('Email already registered');
+
+    const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000); // 5 mins
+
+    await this.prisma.otpVerification.create({
+      data: { email, code: otp, expiresAt, type: 'REGISTER' },
+    });
+
+    await this.mailService.sendOTPEmail(email, otp);
+    return { success: true, message: 'OTP sent to email' };
+  }
+
+  async register(dto: RegisterDto & { otp: string }) {
+    // Check OTP
+    const validOtp = await this.prisma.otpVerification.findFirst({
+      where: { email: dto.email, code: dto.otp, type: 'REGISTER' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!validOtp || validOtp.expiresAt < new Date()) {
+      throw new UnauthorizedException('Invalid or expired OTP');
+    }
+
     const exists = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -43,10 +73,58 @@ export class AuthService {
       },
     });
 
+    // Clean up used OTPs
+    await this.prisma.otpVerification.deleteMany({
+      where: { email: dto.email, type: 'REGISTER' },
+    });
+
     return {
       ...sanitizeUser(user),
       mustChangePassword: await this.settingsService.getForcePasswordChangeRequired(user.id),
     };
+  }
+
+  async requestForgotPasswordOtp(email: string) {
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) throw new UnauthorizedException('User not found');
+
+    const otp = generateOTP();
+    const expiresAt = new Date(Date.now() + 5 * 60 * 1000);
+
+    await this.prisma.otpVerification.create({
+      data: { email, code: otp, expiresAt, type: 'FORGOT_PASSWORD' },
+    });
+
+    await this.mailService.sendOTPEmail(email, otp);
+    return { success: true, message: 'OTP sent to email' };
+  }
+
+  async resetPassword(email: string, otp: string, newPassword: string) {
+    const validOtp = await this.prisma.otpVerification.findFirst({
+      where: { email, code: otp, type: 'FORGOT_PASSWORD' },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    if (!validOtp || validOtp.expiresAt < new Date()) {
+      throw new UnauthorizedException('Invalid or expired OTP');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) throw new UnauthorizedException('User not found');
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    await this.prisma.user.update({
+      where: { email },
+      data: { password: hashedPassword },
+    });
+
+    await this.settingsService.markPasswordChanged(user.id);
+    await this.prisma.otpVerification.deleteMany({
+      where: { email, type: 'FORGOT_PASSWORD' },
+    });
+
+    return { success: true, message: 'Password has been reset' };
   }
 
   async login(dto: LoginDto) {

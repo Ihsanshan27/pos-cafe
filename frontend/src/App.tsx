@@ -13,6 +13,7 @@ import UsersPage from './pages/UsersPage';
 import CategoriesPage from './pages/CategoriesPage';
 import DiscountsPage from './pages/DiscountsPage';
 import LoginPage from './pages/LoginPage';
+import ForgotPasswordPage from './pages/ForgotPasswordPage';
 import SettingsPage from './pages/SettingsPage';
 import KitchenPage from './pages/KitchenPage';
 import ProfilePage from './pages/ProfilePage';
@@ -111,6 +112,7 @@ export default function App() {
         <AuthProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/forgot-password" element={<ForgotPasswordPage />} />
             <Route path="/public/order/:outletSlug/:tableCode" element={<PublicOrderPage />} />
             <Route path="/*" element={<ProtectedLayout />} />
           </Routes>

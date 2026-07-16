@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { authApi, resolveMediaUrl } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { ChefHat, Eye, EyeOff, LogIn } from 'lucide-react';
 import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
 
@@ -10,6 +10,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const { storeName, storePhone, storeLogoUrl, allowRegistration: allowRegistrationSetting } = useAppPublicSettings();
   const [tab, setTab] = useState<'login' | 'register'>('login');
+  const [registerStep, setRegisterStep] = useState<1 | 2>(1);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -32,6 +33,7 @@ export default function LoginPage() {
     name: '',
     email: '',
     password: '',
+    otp: '',
   });
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -49,6 +51,20 @@ export default function LoginPage() {
     }
   };
 
+  const handleRequestRegisterOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError('');
+    try {
+      await authApi.requestRegisterOtp(regForm.email);
+      setRegisterStep(2);
+    } catch (err: any) {
+      setError(err?.response?.data?.message ?? 'Failed to request OTP');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -56,6 +72,7 @@ export default function LoginPage() {
     try {
       await authApi.register(regForm);
       setTab('login');
+      setRegisterStep(1);
       setLoginForm({ email: regForm.email, password: '' });
       setError('');
     } catch (err: any) {
@@ -236,6 +253,11 @@ export default function LoginPage() {
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
+              <div style={{ textAlign: 'right', marginBottom: '1rem', marginTop: '-0.5rem' }}>
+                <Link to="/forgot-password" style={{ color: 'var(--accent)', fontSize: '0.875rem', textDecoration: 'none' }}>
+                  Forgot Password?
+                </Link>
+              </div>
               <button
                 id="login-btn"
                 type="submit"
@@ -250,51 +272,87 @@ export default function LoginPage() {
           )}
 
           {tab === 'register' && allowRegistration && (
-            <form onSubmit={handleRegister}>
-              <div className="form-group">
-                <label htmlFor="reg-name">Full Name</label>
-                <input
-                  id="reg-name"
-                  type="text"
-                  placeholder="John Doe"
-                  value={regForm.name}
-                  onChange={(e) => setRegForm({ ...regForm, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="reg-email">Email</label>
-                <input
-                  id="reg-email"
-                  type="email"
-                  placeholder="john@restaurant.com"
-                  value={regForm.email}
-                  onChange={(e) => setRegForm({ ...regForm, email: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="form-group">
-                <label htmlFor="reg-password">Password</label>
-                <input
-                  id="reg-password"
-                  type="password"
-                  placeholder="Min. 6 characters"
-                  value={regForm.password}
-                  onChange={(e) => setRegForm({ ...regForm, password: e.target.value })}
-                  required
-                  minLength={6}
-                />
-              </div>
-              <button
-                id="register-btn"
-                type="submit"
-                className="btn btn-primary"
-                style={{ width: '100%', justifyContent: 'center', padding: '0.75rem', marginTop: '0.5rem' }}
-                disabled={loading}
-              >
-                {loading ? 'Creating account...' : 'Create Account'}
-              </button>
-            </form>
+            registerStep === 1 ? (
+              <form onSubmit={handleRequestRegisterOtp}>
+                <div className="form-group">
+                  <label htmlFor="reg-name">Full Name</label>
+                  <input
+                    id="reg-name"
+                    type="text"
+                    placeholder="John Doe"
+                    value={regForm.name}
+                    onChange={(e) => setRegForm({ ...regForm, name: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="reg-email">Email</label>
+                  <input
+                    id="reg-email"
+                    type="email"
+                    placeholder="john@restaurant.com"
+                    value={regForm.email}
+                    onChange={(e) => setRegForm({ ...regForm, email: e.target.value })}
+                    required
+                  />
+                </div>
+                <div className="form-group">
+                  <label htmlFor="reg-password">Password</label>
+                  <input
+                    id="reg-password"
+                    type="password"
+                    placeholder="Min. 6 characters"
+                    value={regForm.password}
+                    onChange={(e) => setRegForm({ ...regForm, password: e.target.value })}
+                    required
+                    minLength={6}
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: '100%', justifyContent: 'center', padding: '0.75rem', marginTop: '0.5rem' }}
+                  disabled={loading}
+                >
+                  {loading ? 'Sending OTP...' : 'Continue'}
+                </button>
+              </form>
+            ) : (
+              <form onSubmit={handleRegister}>
+                <div className="form-group">
+                  <label htmlFor="reg-otp">OTP Code</label>
+                  <input
+                    id="reg-otp"
+                    type="text"
+                    placeholder="Enter 6-digit OTP sent to your email"
+                    value={regForm.otp}
+                    onChange={(e) => setRegForm({ ...regForm, otp: e.target.value })}
+                    required
+                    maxLength={6}
+                    style={{ letterSpacing: '0.2rem', textAlign: 'center', fontWeight: 'bold' }}
+                  />
+                  <small style={{ color: 'var(--text-muted)', display: 'block', marginTop: '0.5rem' }}>
+                    We sent an OTP to <strong>{regForm.email}</strong>
+                  </small>
+                </div>
+                <button
+                  id="register-btn"
+                  type="submit"
+                  className="btn btn-primary"
+                  style={{ width: '100%', justifyContent: 'center', padding: '0.75rem', marginTop: '0.5rem' }}
+                  disabled={loading}
+                >
+                  {loading ? 'Creating account...' : 'Verify & Create Account'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRegisterStep(1)}
+                  style={{ width: '100%', background: 'none', border: 'none', color: 'var(--text-muted)', marginTop: '1rem', cursor: 'pointer' }}
+                >
+                  Back
+                </button>
+              </form>
+            )
           )}
         </div>
 

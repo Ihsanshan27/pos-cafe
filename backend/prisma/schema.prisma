@@ -20,6 +20,17 @@ model User {
   purchaseOrders PurchaseOrder[]
 }
 
+model OtpVerification {
+  id        String   @id @default(uuid())
+  email     String
+  code      String
+  expiresAt DateTime
+  type      String   // 'REGISTER' | 'FORGOT_PASSWORD'
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
 enum Role {
   OWNER
   MANAGER

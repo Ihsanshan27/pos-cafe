@@ -21,9 +21,10 @@ import { SuppliersModule } from './suppliers/suppliers.module';
 import { PurchaseOrdersModule } from './purchase-orders/purchase-orders.module';
 import { PublicOrderModule } from './public-order/public-order.module';
 import { ModifiersModule } from './modifiers/modifiers.module';
+import { MailModule } from './mail/mail.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule, IngredientsModule, MenusModule, TransactionsModule, ExpensesModule, UsersModule, CategoriesModule, DiscountsModule, ShiftsModule, SettingsModule, CustomersModule, InventoryLogsModule, OutletsModule, SuppliersModule, PurchaseOrdersModule, PublicOrderModule, ModifiersModule],
+  imports: [PrismaModule, AuthModule, IngredientsModule, MenusModule, TransactionsModule, ExpensesModule, UsersModule, CategoriesModule, DiscountsModule, ShiftsModule, SettingsModule, CustomersModule, InventoryLogsModule, OutletsModule, SuppliersModule, PurchaseOrdersModule, PublicOrderModule, ModifiersModule, MailModule],
   controllers: [AppController],
   providers: [
     AppService,

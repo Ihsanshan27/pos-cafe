@@ -356,14 +356,25 @@ export interface LoginResponse {
 }
 
 export const authApi = {
-  register: (data: { name: string; email: string; password: string }) =>
+  requestRegisterOtp: (email: string) =>
+    api.post<{ success: boolean; message: string }>('/auth/register/request-otp', { email }).then((r) => r.data),
+  register: (data: { name: string; email: string; password: string; otp: string }) =>
     api.post<AuthUser>('/auth/register', data).then((r) => r.data),
+  requestForgotPasswordOtp: (email: string) =>
+    api.post<{ success: boolean; message: string }>('/auth/forgot-password/request-otp', { email }).then((r) => r.data),
+  resetPassword: (email: string, otp: string, newPassword: string) =>
+    api.post<{ success: boolean; message: string }>('/auth/forgot-password/reset', { email, otp, newPassword }).then((r) => r.data),
   login: (data: { email: string; password: string }) =>
     api.post<LoginResponse>('/auth/login', data).then((r) => r.data),
   logout: () => api.post('/auth/logout').then((r) => r.data),
   me: () => api.get<AuthUser>('/auth/me').then((r) => r.data),
   updateProfile: (data: { name?: string; email?: string; password?: string }) => 
     api.patch<AuthUser>('/auth/me', data).then((r) => r.data),
+};
+
+export const mailApi = {
+  sendBroadcast: (data: { subject: string; message: string; target: 'USERS' | 'CUSTOMERS' }) =>
+    api.post<{ success: boolean; message: string }>('/mail/broadcast', data).then((r) => r.data),
 };
 
 // ── New Features API (Category, Discount, Shift) ───────────────

@@ -15,13 +15,37 @@ export class AuthController {
   ) {}
 
   @UseGuards(LoginRateLimitGuard)
+  @Post('register/request-otp')
+  async requestRegisterOtp(@Body('email') email: string) {
+    if (!email) throw new BadRequestException('Email is required');
+    return this.authService.requestRegisterOtp(email);
+  }
+
+  @UseGuards(LoginRateLimitGuard)
   @Post('register')
-  async register(@Body() dto: RegisterDto) {
+  async register(@Body() dto: RegisterDto & { otp: string }) {
     const allowed = await this.settingsService.getAllowRegistration();
     if (!allowed) {
       throw new BadRequestException('Registration is currently disabled by administrator');
     }
+    if (!dto.otp) throw new BadRequestException('OTP is required');
     return this.authService.register(dto);
+  }
+
+  @UseGuards(LoginRateLimitGuard)
+  @Post('forgot-password/request-otp')
+  async requestForgotPasswordOtp(@Body('email') email: string) {
+    if (!email) throw new BadRequestException('Email is required');
+    return this.authService.requestForgotPasswordOtp(email);
+  }
+
+  @UseGuards(LoginRateLimitGuard)
+  @Post('forgot-password/reset')
+  async resetPassword(@Body() dto: { email: string; otp: string; newPassword: string }) {
+    if (!dto.email || !dto.otp || !dto.newPassword) {
+      throw new BadRequestException('Email, OTP, and newPassword are required');
+    }
+    return this.authService.resetPassword(dto.email, dto.otp, dto.newPassword);
   }
 
   @UseGuards(LoginRateLimitGuard)

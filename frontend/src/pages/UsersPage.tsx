@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { userApi, settingsApi, outletApi } from '../lib/api';
 import type { AuthUser } from '../lib/api';
-import { Users, Plus, Trash2, Edit, ArrowUp, ArrowDown } from 'lucide-react';
+import { Users, Plus, Trash2, Edit, ArrowUp, ArrowDown, Send } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSortableData } from '../hooks/useSortableData';
+import { mailApi } from '../lib/api';
 
 export default function UsersPage() {
   const qc = useQueryClient();
@@ -19,6 +20,11 @@ export default function UsersPage() {
   const [password, setPassword] = useState('');
   const [role, setRole] = useState<'OWNER' | 'MANAGER' | 'CASHIER' | 'BARISTA'>('CASHIER');
   const [outletId, setOutletId] = useState('');
+
+  const [isBroadcastOpen, setIsBroadcastOpen] = useState(false);
+  const [broadcastTarget, setBroadcastTarget] = useState<'USERS' | 'CUSTOMERS'>('USERS');
+  const [broadcastSubject, setBroadcastSubject] = useState('');
+  const [broadcastMessage, setBroadcastMessage] = useState('');
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
@@ -86,6 +92,17 @@ export default function UsersPage() {
     },
   });
 
+  const broadcastMut = useMutation({
+    mutationFn: () => mailApi.sendBroadcast({ target: broadcastTarget, subject: broadcastSubject, message: broadcastMessage }),
+    onSuccess: (data) => {
+      alert(data.message);
+      setIsBroadcastOpen(false);
+      setBroadcastSubject('');
+      setBroadcastMessage('');
+    },
+    onError: (err: any) => alert(err?.response?.data?.message || 'Error sending broadcast')
+  });
+
   if (!isManagerOrOwner) {
     return (
       <div className="main-content">
@@ -129,8 +146,13 @@ export default function UsersPage() {
               </span>
             </label>
           </div>
+        </div>
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+          <button className="btn btn-secondary" onClick={() => setIsBroadcastOpen(true)}>
+            <Send size={18} /> Send Broadcast
+          </button>
           <button className="btn btn-primary" onClick={() => { resetForm(); setIsModalOpen(true); }}>
-            <Plus size={18} /> Add User
+            <Plus size={18} /> Add Staff
           </button>
         </div>
       </div>
@@ -250,6 +272,55 @@ export default function UsersPage() {
                 disabled={(!editingUser && (!name || !email || !password)) || (editingUser && (!name || !email)) || createMut.isPending || updateMut.isPending}
               >
                 {createMut.isPending || updateMut.isPending ? 'Saving...' : 'Save User'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Broadcast Modal */}
+      {isBroadcastOpen && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2>Send Broadcast Email</h2>
+              <button className="btn-close" onClick={() => setIsBroadcastOpen(false)}>&times;</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-group">
+                <label>Target Audience</label>
+                <select value={broadcastTarget} onChange={(e) => setBroadcastTarget(e.target.value as any)}>
+                  <option value="USERS">All Staff (Users)</option>
+                  <option value="CUSTOMERS">All Customers</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label>Subject</label>
+                <input
+                  type="text"
+                  placeholder="e.g., Important Update"
+                  value={broadcastSubject}
+                  onChange={(e) => setBroadcastSubject(e.target.value)}
+                />
+              </div>
+              <div className="form-group">
+                <label>Message</label>
+                <textarea
+                  placeholder="Type your message here..."
+                  value={broadcastMessage}
+                  onChange={(e) => setBroadcastMessage(e.target.value)}
+                  style={{ minHeight: '120px' }}
+                />
+              </div>
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={() => setIsBroadcastOpen(false)}>Cancel</button>
+              <button 
+                className="btn btn-primary" 
+                onClick={() => broadcastMut.mutate()} 
+                disabled={broadcastMut.isPending || !broadcastSubject || !broadcastMessage}
+              >
+                {broadcastMut.isPending ? 'Sending...' : 'Send Broadcast'}
               </button>
             </div>
           </div>
