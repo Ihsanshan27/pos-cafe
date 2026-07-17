@@ -207,85 +207,104 @@ export default function POSPage() {
   };
 
   const buildReceiptHtml = (tx: Transaction) => `
-    <div style="padding: 2rem; font-family: monospace; background: #fff; color: #000;">
-      <div style="text-align: center; margin-bottom: 1.5rem;">
-        ${storeLogoUrl ? `<img src="${resolveMediaUrl(storeLogoUrl)}" alt="${storeName}" style="width: 52px; height: 52px; object-fit: cover; border-radius: 12px; margin-bottom: 0.75rem; border: 1px solid #ddd; background: white;" />` : ''}
-        ${receiptHeader ? `<div style="font-size: 0.85rem; color: #666; margin-bottom: 0.35rem;">${receiptHeader}</div>` : ''}
-        <h2 style="margin: 0; font-size: 1.5rem; font-weight: 800;">${storeName}</h2>
-        ${storeAddress ? `<div style="font-size: 0.8rem; color: #666; margin-top: 0.35rem;">${storeAddress}</div>` : ''}
-        ${storePhone ? `<div style="font-size: 0.8rem; color: #666;">${storePhone}</div>` : ''}
-        ${storeTaxId ? `<div style="font-size: 0.8rem; color: #666;">${storeTaxId}</div>` : ''}
-        <div style="font-size: 0.85rem; color: #666;">
+    <div style="max-width: 380px; margin: 0 auto; padding: 32px; font-family: monospace; background: #fff; color: #000;">
+      <div style="text-align: center; margin-bottom: 24px;">
+        ${storeLogoUrl ? `<img src="${resolveMediaUrl(storeLogoUrl)}" alt="${storeName}" style="width: 52px; height: 52px; object-fit: cover; border-radius: 12px; margin-bottom: 12px; border: 1px solid #ddd; background: white;" />` : ''}
+        ${receiptHeader ? `<div style="font-size: 14px; color: #666; margin-bottom: 6px;">${receiptHeader}</div>` : ''}
+        <h2 style="margin: 0; font-size: 24px; font-weight: 800;">${storeName}</h2>
+        ${storeAddress ? `<div style="font-size: 13px; color: #666; margin-top: 6px;">${storeAddress}</div>` : ''}
+        ${storePhone ? `<div style="font-size: 13px; color: #666;">${storePhone}</div>` : ''}
+        ${storeTaxId ? `<div style="font-size: 13px; color: #666;">${storeTaxId}</div>` : ''}
+        <div style="font-size: 14px; color: #666; margin-top: 8px;">
           ${(tx as any)?.orderType === 'DINE_IN' ? `DINE IN - Table ${(tx as any).tableNumber}` : 'TAKEAWAY'}
         </div>
-        ${((tx as any)?.customerName || (tx as any)?.customer?.name) ? `<div style="font-size: 0.9rem; font-weight: 600; margin-top: 0.25rem;">Customer: ${((tx as any)?.customerName || (tx as any)?.customer?.name)}</div>` : ''}
-        <div style="font-size: 0.85rem; color: #666; margin-top: 0.5rem;">
+        ${((tx as any)?.customerName || (tx as any)?.customer?.name) ? `<div style="font-size: 14px; font-weight: 600; margin-top: 4px;">Customer: ${((tx as any)?.customerName || (tx as any)?.customer?.name)}</div>` : ''}
+        <div style="font-size: 14px; color: #666; margin-top: 8px;">
           ${tx.orderNumber || `Order #${tx.id.slice(0, 8).toUpperCase()}`}<br />
           ${new Date(tx.createdAt).toLocaleString('id-ID')}<br />
           Method: ${tx.paymentMethod || 'CASH'}<br />
           Cashier: ${(tx as any).user?.name || 'System'}
         </div>
       </div>
-      <div style="border-top: 1px dashed #ccc; border-bottom: 1px dashed #ccc; padding: 1rem 0; margin-bottom: 1rem;">
+      <div style="border-top: 1px dashed #ccc; border-bottom: 1px dashed #ccc; padding: 16px 0; margin-bottom: 16px;">
         ${tx.items.map((item) => `
-          <div style="display: flex; justify-content: space-between; margin-bottom: 0.5rem; font-size: 0.9rem;">
-            <div style="flex: 1;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 8px; font-size: 14px;">
+            <div style="flex: 1; padding-right: 8px;">
               <div style="font-weight: 600;">${item.menu?.name || 'Unknown Menu'}</div>
-              ${(item as any).notes ? `<div style="font-size: 0.75rem; color: #888; font-style: italic;">Note: ${(item as any).notes}</div>` : ''}
-              <div style="color: #666; font-size: 0.8rem;">${item.quantity} x ${formatCurrency(Number(item.priceAtSale))}</div>
+              ${(() => { const entries = getModifierEntries((item as any).modifiers); return entries.length > 0 ? `<div style="font-size: 12px; color: #666; margin-top: 2px;">${entries.map(e => e.name + (e.price > 0 ? ` (+${formatCurrency(e.price)})` : '')).join(', ')}</div>` : ''; })()}
+              ${(item as any).notes ? `<div style="font-size: 12px; color: #888; font-style: italic; margin-top: 2px;">Note: ${(item as any).notes}</div>` : ''}
+              <div style="color: #666; font-size: 13px; margin-top: 2px;">${item.quantity} x ${formatCurrency(Number(item.priceAtSale))}</div>
             </div>
-            <div style="font-weight: 600;">${formatCurrency(Number(item.subtotal))}</div>
+            <div style="font-weight: 600; white-space: nowrap;">${formatCurrency(Number(item.subtotal))}</div>
           </div>
         `).join('')}
       </div>
       ${Number((tx as any).discountAmount) > 0 ? `
-        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.5rem;">
+        <div style="display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px;">
           <span>Discount</span>
           <span>-${formatCurrency(Number((tx as any).discountAmount))}</span>
         </div>
       ` : ''}
       ${Number((tx as any).taxAmount) > 0 ? `
-        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.5rem;">
+        <div style="display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px;">
           <span>${(tx as any).pricingMetadata?.taxInclusive ? `Included PB1 (${Number((tx as any).pricingMetadata?.taxRate || taxRate)}%)` : `PB1 Tax (${Number((tx as any).pricingMetadata?.taxRate || taxRate)}%)`}</span>
           <span>${(tx as any).pricingMetadata?.taxInclusive ? formatCurrency(Number((tx as any).taxAmount)) : `+${formatCurrency(Number((tx as any).taxAmount))}`}</span>
         </div>
       ` : ''}
       ${Number((tx as any).pricingMetadata?.roundingAdjustment || 0) !== 0 ? `
-        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; margin-bottom: 0.5rem;">
+        <div style="display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px;">
           <span>Rounding</span>
           <span>${Number((tx as any).pricingMetadata?.roundingAdjustment) > 0 ? '+' : ''}${formatCurrency(Number((tx as any).pricingMetadata?.roundingAdjustment || 0))}</span>
         </div>
       ` : ''}
-      <div style="display: flex; justify-content: space-between; font-size: 1.1rem; font-weight: 800;">
+      <div style="display: flex; justify-content: space-between; font-size: 18px; font-weight: 800; margin-top: 8px;">
         <span>TOTAL</span>
         <span>${formatCurrency(Number(tx.totalAmount))}</span>
       </div>
-      <div style="text-align: center; margin-top: 2rem; font-size: 0.85rem; color: #666;">
+      <div style="text-align: center; margin-top: 32px; font-size: 14px; color: #666;">
         ${receiptFooter}
       </div>
     </div>
   `;
 
   const printReceipt = (tx: Transaction) => {
-    const win = window.open('', '', 'width=400,height=600');
-    if (!win) return;
-    win.document.write(`
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+    
+    doc.write(`
       <html>
         <head>
           <title>Receipt</title>
           <style>
-            body { font-family: monospace; margin: 0; padding: 20px; color: black; background: white; }
+            @media print {
+              @page { margin: 0; }
+              body { margin: 0; padding: 20px; }
+            }
+            body { margin: 0; padding: 20px; background: white; }
           </style>
         </head>
         <body>
           ${buildReceiptHtml(tx)}
           <script>
-            window.onload = () => { window.print(); window.close(); }
+            window.onload = () => { 
+              window.print(); 
+            }
           </script>
         </body>
       </html>
     `);
-    win.document.close();
+    doc.close();
+    
+    // Clean up iframe after a while
+    setTimeout(() => {
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
+      }
+    }, 10000);
   };
 
   const printReceiptWithThermal = async (tx: Transaction) => {
@@ -303,28 +322,108 @@ export default function POSPage() {
       await printerService.printReceipt(orderData, storeName, printerPaperSize);
       
       if (enableCupStickers) {
-        let totalItems = 0;
-        tx.items.forEach((item: any) => { totalItems += item.quantity; });
-        
-        let currentItem = 1;
-        for (const item of tx.items) {
-          for (let q = 0; q < item.quantity; q++) {
-            await printerService.printCupSticker({
-              orderNumber: tx.orderNumber || tx.id.slice(0, 8).toUpperCase(),
-              customerName: tx.customerName || (tx as any).customer?.name || 'Guest',
-              itemIndex: currentItem,
-              totalItems: totalItems,
-              menuName: (item as any).menu?.name || (item as any).menuName || 'Unknown',
-              modifiers: (item as any).modifiers,
-              notes: (item as any).notes,
-            }, storeName, printerPaperSize);
-            currentItem++;
-          }
-        }
+        await printStickersWithThermal(tx, true);
       }
     } catch (e) {
       console.error('Print thermal error', e);
       printReceipt(tx); // fallback to browser print
+    }
+  };
+
+  const printStickers = (tx: Transaction) => {
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    
+    const doc = iframe.contentWindow?.document;
+    if (!doc) return;
+    
+    let totalItems = 0;
+    tx.items.forEach((item: any) => { totalItems += item.quantity; });
+    
+    let stickersHtml = '';
+    let currentItem = 1;
+    
+    for (const item of tx.items) {
+      for (let q = 0; q < item.quantity; q++) {
+        const entries = getModifierEntries((item as any).modifiers);
+        const modifiersHtml = entries.length > 0 
+          ? `<div style="font-size: 11px; margin-top: 4px;">${entries.map(e => `* ${e.name}`).join('<br/>')}</div>` 
+          : '';
+        const notesHtml = (item as any).notes 
+          ? `<div style="font-size: 11px; font-style: italic; margin-top: 4px;">Note: ${(item as any).notes}</div>` 
+          : '';
+          
+        stickersHtml += `
+          <div style="width: 100%; max-width: 200px; padding: 10px; font-family: monospace; color: black; box-sizing: border-box; text-align: left; page-break-after: always;">
+            <div style="text-align: center; font-weight: bold; font-size: 14px; margin-bottom: 8px;">${storeName}</div>
+            <div style="border-bottom: 1px dashed black; margin-bottom: 8px;"></div>
+            <div style="font-size: 11px;">
+              Order: ${tx.orderNumber || tx.id.slice(0, 8).toUpperCase()}<br/>
+              Cust: ${tx.customerName || (tx as any).customer?.name || 'Guest'}<br/>
+              Cup: ${currentItem} of ${totalItems}
+            </div>
+            <div style="border-bottom: 1px dashed black; margin-top: 8px; margin-bottom: 8px;"></div>
+            <div style="font-size: 16px; font-weight: bold;">${item.menu?.name || 'Unknown Menu'}</div>
+            ${modifiersHtml}
+            ${notesHtml}
+          </div>
+        `;
+        currentItem++;
+      }
+    }
+    
+    doc.write(`
+      <html>
+        <head>
+          <title>Stickers</title>
+          <style>
+            @media print {
+              @page { margin: 0; size: auto; }
+              body { margin: 0; padding: 10px; }
+            }
+            body { margin: 0; padding: 10px; background: white; }
+          </style>
+        </head>
+        <body>
+          ${stickersHtml}
+          <script>
+            window.onload = () => { window.print(); }
+          </script>
+        </body>
+      </html>
+    `);
+    doc.close();
+    
+    setTimeout(() => {
+      if (document.body.contains(iframe)) document.body.removeChild(iframe);
+    }, 10000);
+  };
+
+  const printStickersWithThermal = async (tx: Transaction, throwError = false) => {
+    try {
+      let totalItems = 0;
+      tx.items.forEach((item: any) => { totalItems += item.quantity; });
+      
+      let currentItem = 1;
+      for (const item of tx.items) {
+        for (let q = 0; q < item.quantity; q++) {
+          await printerService.printCupSticker({
+            orderNumber: tx.orderNumber || tx.id.slice(0, 8).toUpperCase(),
+            customerName: tx.customerName || (tx as any).customer?.name || 'Guest',
+            itemIndex: currentItem,
+            totalItems: totalItems,
+            menuName: (item as any).menu?.name || (item as any).menuName || 'Unknown Menu',
+            modifiers: (item as any).modifiers,
+            notes: (item as any).notes,
+          }, storeName, printerPaperSize);
+          currentItem++;
+        }
+      }
+    } catch (e) {
+      console.error('Print sticker thermal error', e);
+      if (throwError) throw e;
+      printStickers(tx);
     }
   };
 
@@ -1349,10 +1448,14 @@ export default function POSPage() {
                 Close
               </button>
               <button 
-                style={{ flex: 1, padding: '1rem', background: 'transparent', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer', fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                style={{ flex: 1, padding: '1rem 0.5rem', background: 'transparent', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer', fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                 onClick={() => {
-                  const win = window.open('', '', 'width=400,height=600');
-                  if (win) {
+                  const iframe = document.createElement('iframe');
+                  iframe.style.display = 'none';
+                  document.body.appendChild(iframe);
+                  
+                  const doc = iframe.contentWindow?.document;
+                  if (doc) {
                     const itemsHtml = receiptTx.items.map(item => `
                       <div style="margin-bottom: 10px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">
                         <div style="font-weight: bold; font-size: 1.2rem;">${item.quantity} x ${item.menu?.name || 'Unknown Menu'}</div>
@@ -1360,36 +1463,52 @@ export default function POSPage() {
                         ${(item as any).notes ? `<div style="font-size: 1rem; color: #333; font-weight: bold; margin-top: 5px;">Catatan: ${(item as any).notes}</div>` : ''}
                       </div>
                     `).join('');
-                    win.document.write(`
+                    doc.write(`
                       <html>
                         <head>
                           <title>Kitchen Ticket</title>
                           <style>
-                            body { font-family: monospace; margin: 0; padding: 20px; color: black; background: white; }
+                            @media print {
+                              @page { margin: 0; }
+                              body { margin: 0; padding: 20px; }
+                            }
+                            body { margin: 0; padding: 20px; background: white; }
                           </style>
                         </head>
                         <body>
-                          <h2 style="text-align: center; margin-top: 0; border-bottom: 2px solid black; padding-bottom: 10px;">KITCHEN TICKET</h2>
-                          <div style="font-size: 1.1rem; font-weight: bold; margin-bottom: 15px;">
-                            ${(receiptTx as any)?.orderType === 'DINE_IN' ? `DINE IN - Table ${(receiptTx as any).tableNumber}` : 'TAKEAWAY'}<br/>
-                            ${((receiptTx as any)?.customerName || (receiptTx as any)?.customer?.name) ? `Customer: ${((receiptTx as any)?.customerName || (receiptTx as any)?.customer?.name)}<br/>` : ''}
-                            Time: ${new Date(receiptTx.createdAt).toLocaleTimeString('id-ID')}
+                          <div style="max-width: 320px; margin: 0 auto; font-family: monospace; color: black;">
+                            <h2 style="text-align: center; margin-top: 0; border-bottom: 2px solid black; padding-bottom: 10px; font-size: 18px;">KITCHEN TICKET</h2>
+                            <div style="font-size: 12px; font-weight: bold; margin-bottom: 15px;">
+                              ${(receiptTx as any)?.orderType === 'DINE_IN' ? `DINE IN - Table ${(receiptTx as any).tableNumber}` : 'TAKEAWAY'}<br/>
+                              ${((receiptTx as any)?.customerName || (receiptTx as any)?.customer?.name) ? `Customer: ${((receiptTx as any)?.customerName || (receiptTx as any)?.customer?.name)}<br/>` : ''}
+                              Time: ${new Date(receiptTx.createdAt).toLocaleTimeString('id-ID')}
+                            </div>
+                            <div>${itemsHtml.replace(/font-size: 1.2rem;/g, 'font-size: 14px;').replace(/font-size: 0.9rem;/g, 'font-size: 11px;').replace(/font-size: 1rem;/g, 'font-size: 12px;')}</div>
                           </div>
-                          <div>${itemsHtml}</div>
                           <script>
-                            window.onload = () => { window.print(); window.close(); }
+                            window.onload = () => { window.print(); }
                           </script>
                         </body>
                       </html>
                     `);
-                    win.document.close();
+                    doc.close();
+                    
+                    setTimeout(() => {
+                      if (document.body.contains(iframe)) document.body.removeChild(iframe);
+                    }, 10000);
                   }
                 }}
               >
                 <Printer size={16} /> Kitchen
               </button>
               <button 
-                style={{ flex: 1, padding: '1rem', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                style={{ flex: 1, padding: '1rem 0.5rem', background: 'transparent', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer', fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                onClick={() => printStickersWithThermal(receiptTx)}
+              >
+                <Printer size={16} /> Sticker
+              </button>
+              <button 
+                style={{ flex: 1, padding: '1rem 0.5rem', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                 onClick={() => printReceiptWithThermal(receiptTx)}
               >
                 <Printer size={16} /> Print

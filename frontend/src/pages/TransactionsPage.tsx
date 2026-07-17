@@ -218,37 +218,48 @@ export default function TransactionsPage() {
   };
 
   const executePrintKitchenTicket = (txToPrint: Transaction) => {
-    const win = window.open('', '', 'width=400,height=600');
-    if (win) {
+    const iframe = document.createElement('iframe');
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    
+    const doc = iframe.contentWindow?.document;
+    if (doc) {
       const itemsHtml = txToPrint.items.map(item => `
         <div style="margin-bottom: 10px; border-bottom: 1px dashed #ccc; padding-bottom: 10px;">
-          <div style="font-weight: bold; font-size: 1.2rem;">${item.quantity} x ${item.menu?.name || 'Unknown Menu'}</div>
-          ${(item as any).notes ? `<div style="font-size: 1rem; color: #333; font-weight: bold; margin-top: 5px;">Catatan: ${(item as any).notes}</div>` : ''}
+          <div style="font-weight: bold; font-size: 14px;">${item.quantity} x ${item.menu?.name || 'Unknown Menu'}</div>
+          ${(item as any).notes ? `<div style="font-size: 12px; color: #333; font-weight: bold; margin-top: 5px;">Catatan: ${(item as any).notes}</div>` : ''}
         </div>
       `).join('');
-      win.document.write(`
+      doc.write(`
         <html>
           <head>
             <title>Kitchen Ticket</title>
             <style>
+              @media print {
+                @page { margin: 0; }
+                body { margin: 0; padding: 20px; }
+              }
               body { font-family: monospace; margin: 0; padding: 20px; color: black; background: white; }
             </style>
           </head>
           <body>
-            <h2 style="text-align: center; margin-top: 0; border-bottom: 2px solid black; padding-bottom: 10px;">KITCHEN TICKET</h2>
-            <div style="font-size: 1.1rem; font-weight: bold; margin-bottom: 15px;">
-              ${(txToPrint as any)?.orderType === 'DINE_IN' ? `DINE IN - Table ${(txToPrint as any).tableNumber}` : 'TAKEAWAY'}<br/>
-              ${((txToPrint as any)?.customerName || (txToPrint as any)?.customer?.name) ? `Customer: ${((txToPrint as any)?.customerName || (txToPrint as any)?.customer?.name)}<br/>` : ''}
-              Time: ${new Date(txToPrint.createdAt).toLocaleTimeString('id-ID')}
+            <div style="max-width: 320px; margin: 0 auto; font-family: monospace; color: black;">
+              <h2 style="text-align: center; margin-top: 0; border-bottom: 2px solid black; padding-bottom: 10px; font-size: 18px;">KITCHEN TICKET</h2>
+              <div style="font-size: 12px; font-weight: bold; margin-bottom: 15px;">
+                ${(txToPrint as any)?.orderType === 'DINE_IN' ? `DINE IN - Table ${(txToPrint as any).tableNumber}` : 'TAKEAWAY'}<br/>
+                ${((txToPrint as any)?.customerName || (txToPrint as any)?.customer?.name) ? `Customer: ${((txToPrint as any)?.customerName || (txToPrint as any)?.customer?.name)}<br/>` : ''}
+                Time: ${new Date(txToPrint.createdAt).toLocaleTimeString('id-ID')}
+              </div>
+              <div>${itemsHtml}</div>
             </div>
-            <div>${itemsHtml}</div>
             <script>
-              window.onload = () => { window.print(); window.close(); }
+              window.onload = () => { window.print(); }
             </script>
           </body>
         </html>
       `);
-      win.document.close();
+      doc.close();
+      setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 10000);
     }
   };
 
@@ -438,40 +449,120 @@ export default function TransactionsPage() {
 
             <div style={{ display: 'flex', borderTop: '1px solid var(--border)', background: 'var(--bg-secondary)' }}>
               <button 
-                style={{ flex: 1, padding: '1rem', background: 'transparent', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer', fontWeight: 600, color: 'var(--text-secondary)' }}
+                style={{ flex: 1, padding: '1rem 0.5rem', background: 'transparent', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer', fontWeight: 600, color: 'var(--text-secondary)' }}
                 onClick={() => setReceiptTx(null)}
               >
                 Close
               </button>
               <button 
-                style={{ flex: 1, padding: '1rem', background: 'transparent', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer', fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                style={{ flex: 1, padding: '1rem 0.5rem', background: 'transparent', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer', fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                 onClick={() => setKitchenTicketTx(receiptTx)}
               >
                 <Printer size={16} /> Kitchen
               </button>
               <button 
-                style={{ flex: 1, padding: '1rem', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                style={{ flex: 1, padding: '1rem 0.5rem', background: 'transparent', border: 'none', borderRight: '1px solid var(--border)', cursor: 'pointer', fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
+                onClick={() => {
+                  const iframe = document.createElement('iframe');
+                  iframe.style.display = 'none';
+                  document.body.appendChild(iframe);
+                  
+                  const doc = iframe.contentWindow?.document;
+                  if (!doc) return;
+                  
+                  let totalItems = 0;
+                  receiptTx.items.forEach((item: any) => { totalItems += item.quantity; });
+                  
+                  let stickersHtml = '';
+                  let currentItem = 1;
+                  
+                  for (const item of receiptTx.items) {
+                    for (let q = 0; q < item.quantity; q++) {
+                      const entries = getModifierEntries((item as any).modifiers);
+                      const modifiersHtml = entries.length > 0 
+                        ? `<div style="font-size: 11px; margin-top: 4px;">${entries.map(e => `* ${e.name}`).join('<br/>')}</div>` 
+                        : '';
+                      const notesHtml = (item as any).notes 
+                        ? `<div style="font-size: 11px; font-style: italic; margin-top: 4px;">Note: ${(item as any).notes}</div>` 
+                        : '';
+                        
+                      stickersHtml += `
+                        <div style="width: 100%; max-width: 200px; padding: 10px; font-family: monospace; color: black; box-sizing: border-box; text-align: left; page-break-after: always;">
+                          <div style="text-align: center; font-weight: bold; font-size: 14px; margin-bottom: 8px;">${storeName}</div>
+                          <div style="border-bottom: 1px dashed black; margin-bottom: 8px;"></div>
+                          <div style="font-size: 11px;">
+                            Order: ${receiptTx.orderNumber || receiptTx.id.slice(0, 8).toUpperCase()}<br/>
+                            Cust: ${receiptTx.customerName || (receiptTx as any).customer?.name || 'Guest'}<br/>
+                            Cup: ${currentItem} of ${totalItems}
+                          </div>
+                          <div style="border-bottom: 1px dashed black; margin-top: 8px; margin-bottom: 8px;"></div>
+                          <div style="font-size: 16px; font-weight: bold;">${item.menu?.name || 'Unknown Menu'}</div>
+                          ${modifiersHtml}
+                          ${notesHtml}
+                        </div>
+                      `;
+                      currentItem++;
+                    }
+                  }
+                  
+                  doc.write(`
+                    <html>
+                      <head>
+                        <title>Stickers</title>
+                        <style>
+                          @media print {
+                            @page { margin: 0; size: auto; }
+                            body { margin: 0; padding: 10px; }
+                          }
+                          body { margin: 0; padding: 10px; background: white; }
+                        </style>
+                      </head>
+                      <body>
+                        ${stickersHtml}
+                        <script>
+                          window.onload = () => { window.print(); }
+                        </script>
+                      </body>
+                    </html>
+                  `);
+                  doc.close();
+                  setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 10000);
+                }}
+              >
+                <Printer size={16} /> Sticker
+              </button>
+              <button 
+                style={{ flex: 1, padding: '1rem 0.5rem', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600, color: 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}
                 onClick={() => {
                   const content = document.getElementById('receipt-content')?.innerHTML;
-                  const win = window.open('', '', 'width=400,height=600');
-                  if (win) {
-                    win.document.write(`
+                  const iframe = document.createElement('iframe');
+                  iframe.style.display = 'none';
+                  document.body.appendChild(iframe);
+                  
+                  const doc = iframe.contentWindow?.document;
+                  if (doc) {
+                    doc.write(`
                       <html>
                         <head>
                           <title>Receipt</title>
                           <style>
+                            @media print {
+                              @page { margin: 0; }
+                              body { margin: 0; padding: 20px; }
+                            }
                             body { font-family: monospace; margin: 0; padding: 20px; color: black; background: white; }
                           </style>
                         </head>
                         <body>
                           ${content}
                           <script>
-                            window.onload = () => { window.print(); window.close(); }
+                            window.onload = () => { window.print(); }
                           </script>
                         </body>
                       </html>
                     `);
-                    win.document.close();
+                    doc.close();
+                    setTimeout(() => { if (document.body.contains(iframe)) document.body.removeChild(iframe); }, 10000);
                   }
                 }}
               >

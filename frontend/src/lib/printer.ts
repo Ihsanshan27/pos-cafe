@@ -54,8 +54,41 @@ export class ThermalPrinter {
       if (!('serial' in navigator)) {
         throw new Error('Web Serial API is not supported in this browser.');
       }
-      const port = await (navigator as any).serial.requestPort();
-      await port.open({ baudRate: 9600 });
+
+      // Jika sudah terhubung sebelumnya dan writer masih aktif, langsung return true
+      if (this.device && this.writer) {
+        return true;
+      }
+
+      let port;
+      // Coba cari port yang sudah pernah diizinkan (tanpa perlu popup lagi)
+      const ports = await (navigator as any).serial.getPorts();
+      if (ports && ports.length > 0) {
+        port = ports[0];
+      } else {
+        // Jika belum ada, munculkan popup untuk memilih port USB/Serial
+        port = await (navigator as any).serial.requestPort();
+      }
+
+      // Buka koneksi jika belum terbuka
+      // Gunakan baudRate standar ESC/POS (seringkali 9600, tapi printer modern kadang butuh 115200)
+      try {
+        await port.open({ baudRate: 9600 });
+      } catch (e: any) {
+        // Abaikan error jika port sebenarnya sudah terbuka (InvalidStateError)
+        if (e.name !== 'InvalidStateError') {
+          throw e;
+        }
+      }
+
+      // Sangat penting untuk beberapa printer thermal (khususnya virtual COM port):
+      // Mengirimkan sinyal Data Terminal Ready (DTR) & Request to Send (RTS) agar printer mau menerima data.
+      try {
+        await port.setSignals({ dataTerminalReady: true, requestToSend: true });
+      } catch (e) {
+        console.warn('Set signals not supported on this port, continuing anyway.', e);
+      }
+
       this.device = port;
       this.writer = port.writable.getWriter();
       return true;
