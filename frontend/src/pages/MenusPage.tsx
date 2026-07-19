@@ -3,7 +3,8 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { modifierApi, menuApi, ingredientApi, categoryApi, resolveMediaUrl, outletApi } from '../lib/api';
 import type { Menu, CreateMenuPayload, Category } from '../lib/api';
 import { useAuth } from '../contexts/AuthContext';
-import { Plus, Search, Pencil, Trash2, UtensilsCrossed, X, Check, TrendingUp, Eye, MapPin } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, UtensilsCrossed, X, Check, TrendingUp, Eye, MapPin, ArrowUp, ArrowDown } from 'lucide-react';
+import { useSortableData } from '../hooks/useSortableData';
 
 function formatCurrency(val: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
@@ -134,6 +135,13 @@ export default function MenusPage() {
 
   const filtered = menus.filter((m) => m.name.toLowerCase().includes(search.toLowerCase()));
 
+  const { items: sortedMenus, requestSort, sortConfig } = useSortableData(filtered, { key: 'name', direction: 'asc' });
+
+  const getSortIcon = (key: string) => {
+    if (!sortConfig || sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
+  };
+
   const profitPct = (menu: Menu) => {
     const hpp = Number(menu.hpp);
     const price = Number(menu.sellingPrice);
@@ -163,24 +171,24 @@ export default function MenusPage() {
 
         {isLoading ? (
           <div className="empty-state"><UtensilsCrossed /><p>Loading menus...</p></div>
-        ) : filtered.length === 0 ? (
+        ) : sortedMenus.length === 0 ? (
           <div className="empty-state"><UtensilsCrossed /><p>No menus found</p></div>
         ) : (
           <div className="table-wrapper">
             <table>
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Category</th>
-                  <th>Selling Price</th>
-                  <th>HPP (COGS)</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('name')}>Name {getSortIcon('name')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('categoryId' as any)}>Category {getSortIcon('categoryId')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('sellingPrice')}>Selling Price {getSortIcon('sellingPrice')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('hpp')}>HPP (COGS) {getSortIcon('hpp')}</th>
                   <th>Profit Margin</th>
                   <th>Recipe Items</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((m) => {
+                {sortedMenus.map((m) => {
                   const pct = profitPct(m);
                   return (
                     <tr key={m.id}>

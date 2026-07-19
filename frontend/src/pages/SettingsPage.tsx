@@ -17,7 +17,10 @@ import {
   ShieldCheck,
   X,
   Users,
+  ArrowUp,
+  ArrowDown
 } from 'lucide-react';
+import { useSortableData } from '../hooks/useSortableData';
 
 type PaymentMethod = 'CASH' | 'QRIS' | 'DEBIT' | 'EWALLET';
 type RoundingMode = 'NONE' | 'NEAREST' | 'UP' | 'DOWN';
@@ -246,6 +249,13 @@ export default function SettingsPage() {
     queryKey: ['audit-logs'],
     queryFn: () => settingsApi.getAuditLogs(),
   });
+
+  const { items: sortedAuditLogs, requestSort, sortConfig } = useSortableData<any>(auditLogs, { key: 'createdAt', direction: 'desc' });
+
+  const getSortIcon = (key: string) => {
+    if (!sortConfig || sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
+  };
 
   const initialForm = useMemo<SettingsForm>(() => {
     const map = new Map(settings.map((setting) => [setting.key, setting.value]));
@@ -1089,23 +1099,23 @@ export default function SettingsPage() {
 
           {isAuditLogsLoading ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading audit trail...</div>
-          ) : auditLogs.length === 0 ? (
+          ) : sortedAuditLogs.length === 0 ? (
             <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Belum ada log aktivitas administratif yang tercatat.</div>
           ) : (
             <div style={{ overflowX: 'auto' }}>
               <table className="table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                 <thead>
                   <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--border)' }}>
-                    <th style={{ padding: '0.75rem' }}>Waktu</th>
-                    <th style={{ padding: '0.75rem' }}>Pengguna</th>
-                    <th style={{ padding: '0.75rem' }}>Aksi</th>
-                    <th style={{ padding: '0.75rem' }}>Target</th>
-                    <th style={{ padding: '0.75rem' }}>Detail</th>
-                    <th style={{ padding: '0.75rem' }}>IP Address</th>
+                    <th style={{ padding: '0.75rem', cursor: 'pointer' }} onClick={() => requestSort('createdAt')}>Waktu {getSortIcon('createdAt')}</th>
+                    <th style={{ padding: '0.75rem', cursor: 'pointer' }} onClick={() => requestSort('userName')}>Pengguna {getSortIcon('userName')}</th>
+                    <th style={{ padding: '0.75rem', cursor: 'pointer' }} onClick={() => requestSort('action')}>Aksi {getSortIcon('action')}</th>
+                    <th style={{ padding: '0.75rem', cursor: 'pointer' }} onClick={() => requestSort('target')}>Target {getSortIcon('target')}</th>
+                    <th style={{ padding: '0.75rem', cursor: 'pointer' }} onClick={() => requestSort('details')}>Detail {getSortIcon('details')}</th>
+                    <th style={{ padding: '0.75rem', cursor: 'pointer' }} onClick={() => requestSort('ipAddress')}>IP Address {getSortIcon('ipAddress')}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {auditLogs.map((log: any) => {
+                  {sortedAuditLogs.map((log: any) => {
                     let actionBadgeClass = 'badge-secondary';
                     if (log.action === 'UPDATE_MENU' || log.action === 'OVERRIDE_MENU_BRANCH') {
                       actionBadgeClass = 'badge-primary';

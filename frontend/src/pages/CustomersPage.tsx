@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { customerApi } from '../lib/api';
-import { Plus, Users, Search, Trash2 } from 'lucide-react';
+import { Plus, Users, Search, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
+import { useSortableData } from '../hooks/useSortableData';
 
 export default function CustomersPage() {
   const qc = useQueryClient();
@@ -28,6 +29,13 @@ export default function CustomersPage() {
   });
 
   const filtered = customers.filter(c => c.name.toLowerCase().includes(search.toLowerCase()) || c.phone?.includes(search));
+  
+  const { items: sortedCustomers, requestSort, sortConfig } = useSortableData(filtered, { key: 'name', direction: 'asc' });
+
+  const getSortIcon = (key: string) => {
+    if (!sortConfig || sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
+  };
 
   return (
     <div className="main-content">
@@ -62,16 +70,16 @@ export default function CustomersPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Nama</th>
-                  <th>Telepon</th>
-                  <th>Email</th>
-                  <th>Tier</th>
-                  <th>Point Reward</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('name')}>Nama {getSortIcon('name')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('phone')}>Telepon {getSortIcon('phone')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('email')}>Email {getSortIcon('email')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('tier')}>Tier {getSortIcon('tier')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('pointBalance')}>Point Reward {getSortIcon('pointBalance')}</th>
                   <th style={{ width: 100 }}>Aksi</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(c => (
+                {sortedCustomers.map(c => (
                   <tr key={c.id}>
                     <td style={{ fontWeight: 600 }}>{c.name}</td>
                     <td>{c.phone || '-'}</td>
@@ -85,7 +93,7 @@ export default function CustomersPage() {
                     </td>
                   </tr>
                 ))}
-                {filtered.length === 0 && (
+                {sortedCustomers.length === 0 && (
                   <tr><td colSpan={6} style={{ textAlign: 'center', padding: '2rem' }}>Tidak ada data</td></tr>
                 )}
               </tbody>

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { discountApi } from '../lib/api';
 import type { Discount } from '../lib/api';
-import { Plus, Edit2, Trash2, Percent, X, CheckCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Percent, X, CheckCircle, ArrowUp, ArrowDown } from 'lucide-react';
+import { useSortableData } from '../hooks/useSortableData';
 
 export default function DiscountsPage() {
   const qc = useQueryClient();
@@ -15,6 +16,13 @@ export default function DiscountsPage() {
     queryKey: ['discounts'],
     queryFn: discountApi.getAll,
   });
+
+  const { items: sortedDiscounts, requestSort, sortConfig } = useSortableData(discounts, { key: 'code', direction: 'asc' });
+
+  const getSortIcon = (key: string) => {
+    if (!sortConfig || sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
+  };
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -87,20 +95,20 @@ export default function DiscountsPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>Code</th>
-                <th>Type</th>
-                <th>Value</th>
-                <th>Status</th>
+                <th style={{ cursor: 'pointer' }} onClick={() => requestSort('code')}>Code {getSortIcon('code')}</th>
+                <th style={{ cursor: 'pointer' }} onClick={() => requestSort('type')}>Type {getSortIcon('type')}</th>
+                <th style={{ cursor: 'pointer' }} onClick={() => requestSort('value')}>Value {getSortIcon('value')}</th>
+                <th style={{ cursor: 'pointer' }} onClick={() => requestSort('isActive')}>Status {getSortIcon('isActive')}</th>
                 <th style={{ width: '100px', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={5} style={{ textAlign: 'center', padding: '2rem' }}>Loading discounts...</td></tr>
-              ) : discounts.length === 0 ? (
+              ) : sortedDiscounts.length === 0 ? (
                 <tr><td colSpan={5} style={{ textAlign: 'center', padding: '2rem' }}>No discounts found.</td></tr>
               ) : (
-                discounts.map((disc) => (
+                sortedDiscounts.map((disc) => (
                   <tr key={disc.id}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

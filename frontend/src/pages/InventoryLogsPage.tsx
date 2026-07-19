@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { inventoryLogApi, ingredientApi } from '../lib/api';
-import { Plus, Search, ClipboardList } from 'lucide-react';
+import { Plus, Search, ClipboardList, ArrowUp, ArrowDown } from 'lucide-react';
+import { useSortableData } from '../hooks/useSortableData';
 import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
 import { useActiveOutlet } from '../hooks/useActiveOutlet';
 
@@ -59,6 +60,13 @@ export default function InventoryLogsPage() {
     );
   });
 
+  const { items: sortedLogs, requestSort, sortConfig } = useSortableData(filtered, { key: 'createdAt', direction: 'desc' });
+
+  const getSortIcon = (key: string) => {
+    if (!sortConfig || sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
+  };
+
   return (
     <div className="main-content">
       <div className="page-header">
@@ -86,16 +94,16 @@ export default function InventoryLogsPage() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Tanggal</th>
-                  <th>Bahan Baku</th>
-                  <th>Tipe Log</th>
-                  <th>Kuantitas</th>
-                  <th>Catatan</th>
-                  <th>Oleh</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('createdAt')}>Tanggal {getSortIcon('createdAt')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('ingredientId')}>Bahan Baku {getSortIcon('ingredientId')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('type')}>Tipe Log {getSortIcon('type')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('quantity')}>Kuantitas {getSortIcon('quantity')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('notes')}>Catatan {getSortIcon('notes')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('createdByName')}>Oleh {getSortIcon('createdByName')}</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map(l => {
+                {sortedLogs.map(l => {
                   const tone = getLogTone(l.type, l.quantity);
 
                   return (
@@ -132,7 +140,7 @@ export default function InventoryLogsPage() {
                     </td>
                   </tr>
                 )})}
-                {filtered.length === 0 && (
+                {sortedLogs.length === 0 && (
                   <tr><td colSpan={6} style={{ textAlign: 'center', padding: '2rem' }}>Tidak ada log pergerakan</td></tr>
                 )}
               </tbody>

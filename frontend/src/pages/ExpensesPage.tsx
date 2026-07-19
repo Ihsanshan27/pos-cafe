@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { expenseApi } from '../lib/api';
-import { Wallet, Plus, Trash2 } from 'lucide-react';
+import { Wallet, Plus, Trash2, ArrowUp, ArrowDown } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { useSortableData } from '../hooks/useSortableData';
 import { useActiveOutlet } from '../hooks/useActiveOutlet';
 
 function formatCurrency(val: number) {
@@ -23,6 +24,13 @@ export default function ExpensesPage() {
     queryKey: ['expenses', activeOutletId],
     queryFn: () => expenseApi.getAll(activeOutletId || undefined),
   });
+
+  const { items: sortedExpenses, requestSort, sortConfig } = useSortableData(expenses, { key: 'createdAt', direction: 'desc' });
+
+  const getSortIcon = (key: string) => {
+    if (!sortConfig || sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
+  };
 
   const createMut = useMutation({
     mutationFn: () => expenseApi.create({ description, amount: Number(amount), outletId: activeOutletId || undefined }),
@@ -82,21 +90,21 @@ export default function ExpensesPage() {
 
         {isLoading ? (
           <div className="empty-state"><Wallet /><p>Loading expenses...</p></div>
-        ) : expenses.length === 0 ? (
+        ) : sortedExpenses.length === 0 ? (
           <div className="empty-state"><Wallet /><p>No expenses recorded yet.</p></div>
         ) : (
           <div className="card" style={{ padding: '0', overflow: 'hidden' }}>
             <table className="table">
               <thead>
                 <tr>
-                  <th>Date</th>
-                  <th>Description</th>
-                  <th style={{ textAlign: 'right' }}>Amount</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('createdAt')}>Date {getSortIcon('createdAt')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('description')}>Description {getSortIcon('description')}</th>
+                  <th style={{ cursor: 'pointer', textAlign: 'right' }} onClick={() => requestSort('amount')}>Amount {getSortIcon('amount')}</th>
                   <th style={{ textAlign: 'center', width: '100px' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {expenses.map((exp) => (
+                {sortedExpenses.map((exp) => (
                   <tr key={exp.id}>
                     <td>
                       {new Date(exp.createdAt).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' })}

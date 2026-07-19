@@ -2,9 +2,10 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { ingredientApi } from '../lib/api';
 import type { Ingredient } from '../lib/api';
-import { Plus, Search, Pencil, Trash2, Package, X, Check } from 'lucide-react';
+import { Plus, Search, Pencil, Trash2, Package, X, Check, ArrowUp, ArrowDown } from 'lucide-react';
 import { useAppPublicSettings } from '../hooks/useAppPublicSettings';
 import { useActiveOutlet } from '../hooks/useActiveOutlet';
+import { useSortableData } from '../hooks/useSortableData';
 
 function formatCurrency(val: number) {
   return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(val);
@@ -86,6 +87,13 @@ export default function IngredientsPage() {
 
   const filtered = ingredients.filter((i) => i.name.toLowerCase().includes(search.toLowerCase()));
 
+  const { items: sortedIngredients, requestSort, sortConfig } = useSortableData(filtered, { key: 'name', direction: 'asc' });
+
+  const getSortIcon = (key: string) => {
+    if (!sortConfig || sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
+  };
+
   return (
     <div className="main-content">
       <div className="page-header">
@@ -108,23 +116,23 @@ export default function IngredientsPage() {
 
         {isLoading ? (
           <div className="empty-state"><Package /><p>Loading ingredients...</p></div>
-        ) : filtered.length === 0 ? (
+        ) : sortedIngredients.length === 0 ? (
           <div className="empty-state"><Package /><p>No ingredients found</p></div>
         ) : (
           <div className="table-wrapper">
             <table>
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Unit</th>
-                  <th>Cost per Unit</th>
-                  <th>Stock</th>
-                  <th>Stock Status</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('name')}>Name {getSortIcon('name')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('unit')}>Unit {getSortIcon('unit')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('costPerUnit')}>Cost per Unit {getSortIcon('costPerUnit')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('stockQuantity')}>Stock {getSortIcon('stockQuantity')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('stockQuantity')}>Stock Status {getSortIcon('stockQuantity')}</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
-                {filtered.map((i) => (
+                {sortedIngredients.map((i) => (
                   <tr key={i.id}>
                     <td style={{ fontWeight: 600 }}>{i.name}</td>
                     <td><span className="badge badge-accent">{i.unit}</span></td>

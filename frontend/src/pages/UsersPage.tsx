@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { userApi, settingsApi, outletApi } from '../lib/api';
 import type { AuthUser } from '../lib/api';
-import { Users, Plus, Trash2, Edit, ArrowUp, ArrowDown, Send } from 'lucide-react';
+import { Users, Plus, Trash2, Edit, ArrowUp, ArrowDown, Send, Key } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useSortableData } from '../hooks/useSortableData';
 import { mailApi } from '../lib/api';
@@ -91,6 +91,26 @@ export default function UsersPage() {
       qc.invalidateQueries({ queryKey: ['users'] });
     },
   });
+
+  const resetPasswordMut = useMutation({
+    mutationFn: ({ id, newPassword }: { id: string; newPassword: string }) => userApi.update(id, { password: newPassword }),
+    onSuccess: () => {
+      alert('Password updated successfully.');
+      qc.invalidateQueries({ queryKey: ['users'] });
+    },
+    onError: (err: any) => alert(err?.response?.data?.message || 'Error updating password')
+  });
+
+  const handleResetPassword = (u: AuthUser) => {
+    const newPassword = prompt(`Enter new password for ${u.name}:`);
+    if (newPassword) {
+      if (newPassword.length < 6) {
+        alert("Password must be at least 6 characters.");
+        return;
+      }
+      resetPasswordMut.mutate({ id: u.id, newPassword });
+    }
+  };
 
   const broadcastMut = useMutation({
     mutationFn: () => mailApi.sendBroadcast({ target: broadcastTarget, subject: broadcastSubject, message: broadcastMessage }),
@@ -185,6 +205,15 @@ export default function UsersPage() {
                     <td>{u.outlet?.name || '-'}</td>
                     <td style={{ textAlign: 'center' }}>
                       <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                        <button 
+                          className="btn btn-sm" 
+                          style={{ padding: '0.4rem', borderRadius: '0.4rem', backgroundColor: 'var(--warning, #f59e0b)', color: '#fff', border: 'none' }}
+                          onClick={() => handleResetPassword(u)}
+                          title="Reset Password"
+                          disabled={resetPasswordMut.isPending}
+                        >
+                          <Key size={14} />
+                        </button>
                         <button 
                           className="btn btn-secondary btn-sm" 
                           style={{ padding: '0.4rem', borderRadius: '0.4rem' }}

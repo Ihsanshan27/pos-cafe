@@ -70,7 +70,7 @@ export default function AnalyticsPage() {
     }
 
     const filteredTx = transactions.filter(t => t.status === 'COMPLETED' && new Date(t.createdAt) >= startDate);
-    const filteredExp = expenses.filter(e => new Date(e.date) >= startDate);
+    const filteredExp = expenses.filter(e => new Date(e.createdAt) >= startDate);
 
     return { filteredTx, filteredExp, startDate };
   }, [transactions, expenses, dateRange]);
@@ -127,7 +127,7 @@ export default function AnalyticsPage() {
     });
 
     filteredExp.forEach(e => {
-      const dateStr = new Date(e.date).toLocaleDateString('en-CA');
+      const dateStr = new Date(e.createdAt).toLocaleDateString('en-CA');
       if (grouped[dateStr]) { // Only if there were sales that day or create it
         grouped[dateStr].expenses += Number(e.amount);
       } else {
@@ -151,8 +151,8 @@ export default function AnalyticsPage() {
     filteredTx.forEach(t => {
       t.items.forEach(item => {
         const menu = menus.find(m => m.id === item.menu?.id);
-        if (menu && menu.category) {
-          const catName = menu.category.name;
+        if (menu && (menu as any).category) {
+          const catName = (menu as any).category.name;
           cats[catName] = (cats[catName] || 0) + (Number(item.priceAtSale) * item.quantity);
         }
       });
@@ -312,7 +312,7 @@ export default function AnalyticsPage() {
                     />
                     <Tooltip 
                       contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '0.5rem' }}
-                      formatter={(value: number) => formatCurrency(value)}
+                      formatter={(value: any) => formatCurrency(Number(value))}
                     />
                     <Legend />
                     <Area type="monotone" dataKey="Revenue" stroke="#6366f1" strokeWidth={3} fillOpacity={1} fill="url(#colorRevenue)" />
@@ -352,7 +352,7 @@ export default function AnalyticsPage() {
                     </Pie>
                     <Tooltip 
                       contentStyle={{ background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: '0.5rem' }}
-                      formatter={(value: number) => formatCurrency(value)}
+                      formatter={(value: any) => formatCurrency(Number(value))}
                     />
                     <Legend />
                   </PieChart>

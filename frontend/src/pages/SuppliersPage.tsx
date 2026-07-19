@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supplierApi } from '../lib/api';
-import { Plus, Trash2, Truck } from 'lucide-react';
+import { Plus, Trash2, Truck, ArrowUp, ArrowDown } from 'lucide-react';
+import { useSortableData } from '../hooks/useSortableData';
 
 const emptyForm = { name: '', phone: '', email: '', address: '', notes: '' };
 
@@ -14,6 +15,13 @@ export default function SuppliersPage() {
     queryKey: ['suppliers'],
     queryFn: supplierApi.getAll,
   });
+
+  const { items: sortedSuppliers, requestSort, sortConfig } = useSortableData(suppliers, { key: 'name', direction: 'asc' });
+
+  const getSortIcon = (key: string) => {
+    if (!sortConfig || sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
+  };
 
   const createMut = useMutation({
     mutationFn: () => supplierApi.create(form),
@@ -44,22 +52,22 @@ export default function SuppliersPage() {
       <div className="page-body">
         {isLoading ? (
           <div className="empty-state"><Truck /><p>Loading suppliers...</p></div>
-        ) : suppliers.length === 0 ? (
+        ) : sortedSuppliers.length === 0 ? (
           <div className="empty-state"><Truck /><p>Belum ada supplier.</p></div>
         ) : (
           <div className="table-wrapper">
             <table>
               <thead>
                 <tr>
-                  <th>Nama</th>
-                  <th>Kontak</th>
-                  <th>Alamat</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('name')}>Nama {getSortIcon('name')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('phone')}>Kontak {getSortIcon('phone')}</th>
+                  <th style={{ cursor: 'pointer' }} onClick={() => requestSort('address')}>Alamat {getSortIcon('address')}</th>
                   <th>PO</th>
                   <th>Aksi</th>
                 </tr>
               </thead>
               <tbody>
-                {suppliers.map((supplier) => (
+                {sortedSuppliers.map((supplier) => (
                   <tr key={supplier.id}>
                     <td style={{ fontWeight: 700 }}>{supplier.name}</td>
                     <td>{supplier.phone || supplier.email || '-'}</td>

@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { categoryApi } from '../lib/api';
 import type { Category } from '../lib/api';
-import { Plus, Edit2, Trash2, Tag, X, CheckCircle } from 'lucide-react';
+import { Plus, Edit2, Trash2, Tag, X, CheckCircle, ArrowUp, ArrowDown } from 'lucide-react';
+import { useSortableData } from '../hooks/useSortableData';
 
 export default function CategoriesPage() {
   const qc = useQueryClient();
@@ -15,6 +16,13 @@ export default function CategoriesPage() {
     queryKey: ['categories'],
     queryFn: categoryApi.getAll,
   });
+
+  const { items: sortedCategories, requestSort, sortConfig } = useSortableData(categories, { key: 'name', direction: 'asc' });
+
+  const getSortIcon = (key: string) => {
+    if (!sortConfig || sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
+  };
 
   const showToast = (msg: string, type: 'success' | 'error' = 'success') => {
     setToast({ msg, type });
@@ -87,17 +95,17 @@ export default function CategoriesPage() {
           <table className="table">
             <thead>
               <tr>
-                <th>Name</th>
+                <th style={{ cursor: 'pointer' }} onClick={() => requestSort('name')}>Name {getSortIcon('name')}</th>
                 <th style={{ width: '100px', textAlign: 'right' }}>Actions</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr><td colSpan={2} style={{ textAlign: 'center', padding: '2rem' }}>Loading categories...</td></tr>
-              ) : categories.length === 0 ? (
+              ) : sortedCategories.length === 0 ? (
                 <tr><td colSpan={2} style={{ textAlign: 'center', padding: '2rem' }}>No categories found.</td></tr>
               ) : (
-                categories.map((cat) => (
+                sortedCategories.map((cat) => (
                   <tr key={cat.id}>
                     <td>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
